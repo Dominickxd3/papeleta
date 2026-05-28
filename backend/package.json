@@ -1,0 +1,39 @@
+{
+    "name": "proyecto_papeletas_gp",
+    "version": "2.0.0",
+    "description": "Backend API Sistema de Papeletas de Permiso - Grupo Pecuario",
+    "main": "server.js",
+    "directories": {
+        "lib": "lib"
+    },
+    "scripts": {
+        "start": "node server.js",
+        "dev": "nodemon --signal SIGINT server.js",
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "ops:stop": "pm2 stop papeletas-api",
+        "ops:status": "pm2 status",
+        "ops:restart": "pm2 restart papeletas-api",
+        "ops:logs": "pm2 logs papeletas-api --lines 200",
+        "ops:start": "pm2 start ecosystem.config.cjs --only papeletas-api"
+    },
+    "keywords": [
+        "papeletas",
+        "permisos",
+        "rrhh"
+    ],
+    "author": "",
+    "license": "ISC",
+    "type": "commonjs",
+    "dependencies": {
+        "cors": "^2.8.5",
+        "exceljs": "^4.4.0",
+        "express": "^5.2.1",
+        "jsonwebtoken": "^9.0.2",
+        "mssql": "^12.2.0",
+        "pdfkit": "^0.17.2"
+    },
+    "devDependencies": {
+        "nodemon": "^3.0.1",
+        "pm2": "^5.4.3"
+    }
+}

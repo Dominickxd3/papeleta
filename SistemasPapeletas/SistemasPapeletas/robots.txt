@@ -1,0 +1,4 @@
+﻿User-agent: *
+Allow: /SistemasPapeletas/
+
+Sitemap: https://grupopecuario.pe/SistemasPapeletas/sitemap.xml

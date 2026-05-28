@@ -1,0 +1,589 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0b1220" />
+    <link rel="icon" type="image/png" href="/img/logo-gp.png" data-dynamic-asset="icon" />
+    <link rel="apple-touch-icon" href="/img/logo-gp.png" data-dynamic-asset="apple-touch-icon" />
+   <link rel="manifest" href="/manifest.webmanifest" />
+    <title>Login | Grupo Pecuario</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+
+        :root {
+            --brand-blue: #004b8d;
+            --brand-red: #ed1c24;
+            --bg-light: #dae5f5;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-light);
+            background-image: linear-gradient(135deg, #dce8f8 0%, #cbdcf5 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .main-container {
+            background: #ffffff;
+            border-radius: 40px;
+            box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            width: 100%;
+            max-width: 1000px;
+        }
+
+        .input-gray {
+            background-color: #f3f6f9;
+            border: 2px solid transparent;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+        }
+
+        .input-gray:focus {
+            background-color: #ffffff;
+            border-color: var(--brand-blue);
+            outline: none;
+            box-shadow: 0 4px 12px rgba(0, 75, 141, 0.05);
+        }
+
+        .btn-login {
+            background-color: var(--brand-blue);
+            border-radius: 14px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 20px -8px rgba(0, 75, 141, 0.4);
+            filter: brightness(1.1);
+        }
+
+        .btn-login:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .illustration-card {
+            background-color: #f8faff;
+            border-radius: 0 40px 40px 0;
+            position: relative;
+        }
+
+        .carousel-wrap {
+            width: 100%;
+            max-width: 320px;
+            margin-bottom: 18px;
+            position: relative;
+            overflow: hidden;
+            border-radius: 18px;
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            min-height: 280px;
+        }
+
+        .carousel-slide {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            transform: translateX(18px);
+            transition: opacity .45s ease, transform .45s ease;
+            padding: 18px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            background: linear-gradient(135deg, #f8fbff 0%, #eef4ff 100%);
+        }
+
+        .carousel-slide.active {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .slide-logo {
+            width: 100px;
+            height: auto;
+            margin-bottom: 12px;
+        }
+
+        .slide-art {
+            width: 100%;
+            max-width: 220px;
+            height: 100px;
+            border-radius: 14px;
+            border: 1px solid #dbe3ee;
+            background: linear-gradient(120deg, #e9f1ff, #f4f8ff);
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+
+        .slide-art::before,
+        .slide-art::after {
+            content: "";
+            position: absolute;
+            border-radius: 999px;
+            background: rgba(0, 75, 141, 0.22);
+        }
+
+        .slide-art::before {
+            width: 140px;
+            height: 140px;
+            top: -70px;
+            right: -35px;
+        }
+
+        .slide-art::after {
+            width: 90px;
+            height: 90px;
+            bottom: -42px;
+            left: -30px;
+            background: rgba(237, 28, 36, 0.18);
+        }
+
+        .slide-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 6px;
+        }
+
+        .slide-text {
+            font-size: 12px;
+            color: #475569;
+            line-height: 1.45;
+        }
+
+        .dot-carousel {
+            height: 4px;
+            width: 24px;
+            border-radius: 10px;
+            background-color: #e2e8f0;
+            display: inline-block;
+            margin: 0 3px;
+            transition: all .2s ease;
+        }
+
+        .dot-carousel.active {
+            background-color: var(--brand-blue);
+            width: 32px;
+        }
+
+        .floating-element {
+            animation: float 4s ease-in-out infinite;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.45);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 60;
+            padding: 16px;
+        }
+
+        .modal-overlay.show {
+            display: flex;
+        }
+
+        .mini-modal {
+            width: 100%;
+            max-width: 420px;
+            border-radius: 18px;
+            background: #fff;
+            box-shadow: 0 24px 48px rgba(15, 23, 42, 0.2);
+            padding: 18px;
+        }
+
+        .mini-modal h4 {
+            font-size: 16px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 4px;
+        }
+
+        .mini-modal p {
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 14px;
+        }
+
+        .mini-input {
+            width: 100%;
+            border: 1px solid #dbe3ee;
+            border-radius: 10px;
+            padding: 10px 11px;
+            font-size: 13px;
+            color: #0f172a;
+            margin-bottom: 10px;
+            outline: none;
+        }
+
+        .mini-input:focus {
+            border-color: var(--brand-blue);
+            box-shadow: 0 0 0 3px rgba(0, 75, 141, 0.1);
+        }
+
+        .mini-actions {
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            margin-top: 6px;
+        }
+
+        .btn-mini {
+            border: 0;
+            border-radius: 10px;
+            padding: 10px 12px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .btn-mini.cancel {
+            background: #e2e8f0;
+            color: #334155;
+        }
+
+        .btn-mini.send {
+            background: #16a34a;
+            color: #fff;
+        }
+
+        .alert {
+            display: none;
+            border-radius: 12px;
+            padding: 10px 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 12px;
+        }
+
+        .alert.success {
+            display: block;
+            background: rgba(22, 163, 74, 0.12);
+            color: #166534;
+            border: 1px solid rgba(22, 163, 74, 0.25);
+        }
+
+        .alert.danger {
+            display: block;
+            background: rgba(220, 38, 38, 0.12);
+            color: #991b1b;
+            border: 1px solid rgba(220, 38, 38, 0.25);
+        }
+
+        .alert.warning {
+            display: block;
+            background: rgba(217, 119, 6, 0.12);
+            color: #92400e;
+            border: 1px solid rgba(217, 119, 6, 0.25);
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-15px); }
+        }
+    </style>
+</head>
+<body class="p-4">
+
+    <div class="main-container flex flex-col md:flex-row shadow-2xl">
+
+        <div class="w-full md:w-1/2 p-10 md:p-16 flex flex-col justify-center bg-white">
+            <div class="max-w-xs mx-auto w-full">
+
+                <div class="mb-8 text-center">
+                    <img src="/img/logo-gp.png" alt="Grupo Pecuario" class="h-20 mx-auto mb-6" onerror="this.src='https://via.placeholder.com/150x50?text=Logo'" data-dynamic-src="logo">
+                    <h2 class="text-3xl font-extrabold text-slate-800">Sistemas Papeletas</h2>
+                </div>
+
+                <div id="alertMessage" class="alert"><span id="alertText"></span></div>
+
+                <form id="loginForm" class="space-y-5">
+                    <div>
+                        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Usuario o correo</label>
+                        <input
+                            type="text"
+                            id="usuario"
+                            class="input-gray w-full px-4 py-4 text-sm text-slate-700 placeholder:text-slate-300"
+                            placeholder="usuario"
+                            required
+                        >
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between items-center mb-2 ml-1 gap-2">
+                            <label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Contraseña</label>
+                            <button id="btnSoporte" type="button" class="text-[11px] font-bold text-blue-600 hover:text-blue-800 transition-colors text-right">¿Olvidaste la contraseña?</button>
+                        </div>
+                        <div class="relative">
+                            <input
+                                type="password"
+                                id="contrasena"
+                                class="input-gray w-full px-4 py-4 pr-12 text-sm text-slate-700 placeholder:text-slate-300"
+                                required
+                            >
+                            <button type="button" id="togglePassword" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-500">
+                                <i data-lucide="eye" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <button
+                        id="btnLogin"
+                        type="submit"
+                        class="btn-login w-full py-4 text-white font-bold text-sm tracking-widest mt-4"
+                    >
+                        INGRESAR
+                    </button>
+                </form>
+
+                <div class="mt-10 text-center">
+                    <p class="text-xs text-slate-400">La sesión se cierra tras 5 minutos de inactividad.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="hidden md:flex w-1/2 illustration-card p-12 flex-col items-center justify-center text-center">
+            <div class="carousel-wrap floating-element" id="loginCarousel">
+                <div class="carousel-slide active">
+                    <img src="/img/logo-gp.png" alt="Grupo Pecuario" class="slide-logo" data-dynamic-src="logo">
+                    <div class="slide-art"></div>
+                    <h4 class="slide-title">Control de papeletas</h4>
+                    <p class="slide-text">Centraliza solicitudes y seguimiento en una sola plataforma.</p>
+                </div>
+                <div class="carousel-slide">
+                    <img src="/img/logo-gp.png" alt="Grupo Pecuario" class="slide-logo" data-dynamic-src="logo">
+                    <div class="slide-art"></div>
+                    <h4 class="slide-title">Aprobaciones más rápidas</h4>
+                    <p class="slide-text">Visualiza el estado y reduce tiempos de respuesta operativa.</p>
+                </div>
+                <div class="carousel-slide">
+                    <img src="/img/logo-gp.png" alt="Grupo Pecuario" class="slide-logo" data-dynamic-src="logo">
+                    <div class="slide-art"></div>
+                    <h4 class="slide-title">Trazabilidad diaria</h4>
+                    <p class="slide-text">Mantén registro histórico para auditoría y mejora continua.</p>
+                </div>
+            </div>
+
+            <div class="flex items-center">
+                <span class="dot-carousel active"></span>
+                <span class="dot-carousel"></span>
+                <span class="dot-carousel"></span>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="modal-overlay" id="soporteModal">
+        <div class="mini-modal">
+            <h4>Recuperación de contraseña</h4>
+            <p>Contactarse con el área de sistemas. Completa el formulario y enviaremos el mensaje por WhatsApp.</p>
+            <input class="mini-input" id="soporteNombre" type="text" placeholder="Nombre y apellido" />
+            <input class="mini-input" id="soporteUsuario" type="text" placeholder="Usuario o correo" />
+            <textarea class="mini-input" id="soporteDetalle" rows="3" placeholder="Detalle del problema"></textarea>
+            <div class="mini-actions">
+                <button type="button" class="btn-mini cancel" id="btnCerrarSoporte">Cancelar</button>
+                <button type="button" class="btn-mini send" id="btnEnviarSoporte">Enviar mensaje</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+        const APP_BASE_PATH = (() => {
+            const m = String(window.location.pathname || '').match(/^\/SistemasPapeletas(?=\/|$)/i);
+            return m ? m[0] : '';
+        })();
+        const API_BASE = (() => {
+            const { origin, hostname, port } = window.location;
+            const isLocalPreviewPort = port === '5500' || port === '5501';
+            const isLocalHost = hostname === '127.0.0.1' || hostname === 'localhost';
+            if (isLocalHost && isLocalPreviewPort) {
+                return hostname === 'localhost' ? 'http://localhost:3000/api' : 'http://127.0.0.1:3000/api';
+            }
+            return `${origin}${APP_BASE_PATH}/api`;
+        })();
+        const resolveAppUrl = (assetPath) => {
+            const normalized = String(assetPath || '').startsWith('/') ? String(assetPath) : `/${assetPath || ''}`;
+            return `${APP_BASE_PATH}${normalized}` || normalized;
+        };
+
+        document.querySelectorAll('[data-dynamic-asset="manifest"]').forEach((el) => {
+            el.setAttribute('href', resolveAppUrl('/manifest.webmanifest'));
+        });
+        document.querySelectorAll('[data-dynamic-asset="icon"], [data-dynamic-asset="apple-touch-icon"]').forEach((el) => {
+            el.setAttribute('href', resolveAppUrl('/img/logo-gp.png'));
+        });
+        document.querySelectorAll('[data-dynamic-src="logo"]').forEach((el) => {
+            el.setAttribute('src', resolveAppUrl('/img/logo-gp.png'));
+        });
+
+        const loginForm = document.getElementById('loginForm');
+        const btnLogin = document.getElementById('btnLogin');
+        const alertMessage = document.getElementById('alertMessage');
+        const alertText = document.getElementById('alertText');
+        const usuarioInput = document.getElementById('usuario');
+        const contrasenaInput = document.getElementById('contrasena');
+        const soporteModal = document.getElementById('soporteModal');
+        const btnSoporte = document.getElementById('btnSoporte');
+        const btnCerrarSoporte = document.getElementById('btnCerrarSoporte');
+        const btnEnviarSoporte = document.getElementById('btnEnviarSoporte');
+        const slides = Array.from(document.querySelectorAll('.carousel-slide'));
+        const dots = Array.from(document.querySelectorAll('.dot-carousel'));
+
+        function mostrarAlerta(mensaje, tipo) {
+            alertMessage.className = `alert ${tipo}`;
+            alertText.textContent = mensaje;
+        }
+
+        function limpiarSesionCorrupta() {
+            localStorage.removeItem('usuario');
+            localStorage.removeItem('token');
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const rawUsuario = localStorage.getItem('usuario');
+            if (!rawUsuario || rawUsuario === 'undefined' || rawUsuario === 'null') {
+                limpiarSesionCorrupta();
+                return;
+            }
+
+            try {
+                const usuario = JSON.parse(rawUsuario);
+                if (usuario && typeof usuario === 'object') {
+                    window.location.href = `${APP_BASE_PATH}/HTML/dashboard.html`;
+                } else {
+                    limpiarSesionCorrupta();
+                }
+            } catch {
+                limpiarSesionCorrupta();
+            }
+        });
+
+        let activeSlide = 0;
+        function renderCarousel(index) {
+            slides.forEach((slide, i) => slide.classList.toggle('active', i === index));
+            dots.forEach((dot, i) => dot.classList.toggle('active', i === index));
+        }
+
+        if (slides.length > 1) {
+            setInterval(() => {
+                activeSlide = (activeSlide + 1) % slides.length;
+                renderCarousel(activeSlide);
+            }, 5000);
+        }
+
+        btnSoporte.addEventListener('click', () => {
+            soporteModal.classList.add('show');
+        });
+
+        btnCerrarSoporte.addEventListener('click', () => {
+            soporteModal.classList.remove('show');
+        });
+
+        soporteModal.addEventListener('click', (e) => {
+            if (e.target === soporteModal) {
+                soporteModal.classList.remove('show');
+            }
+        });
+
+        btnEnviarSoporte.addEventListener('click', () => {
+            const nombre = document.getElementById('soporteNombre').value.trim();
+            const usuario = document.getElementById('soporteUsuario').value.trim();
+            const detalle = document.getElementById('soporteDetalle').value.trim();
+
+            if (!nombre || !usuario || !detalle) {
+                mostrarAlerta('Completa los campos del formulario de soporte', 'warning');
+                return;
+            }
+
+            const mensaje = [
+                'Hola, necesito recuperar mi contraseña.',
+                `Nombre: ${nombre}`,
+                `Usuario/Correo: ${usuario}`,
+                `Detalle: ${detalle}`
+            ].join('\n');
+
+            const url = `https://wa.me/51922386045?text=${encodeURIComponent(mensaje)}`;
+            window.open(url, '_blank');
+            soporteModal.classList.remove('show');
+        });
+
+        document.getElementById('togglePassword').addEventListener('click', () => {
+            const isPassword = contrasenaInput.type === 'password';
+            contrasenaInput.type = isPassword ? 'text' : 'password';
+            const toggleBtn = document.getElementById('togglePassword');
+            toggleBtn.innerHTML = `<i data-lucide="${isPassword ? 'eye-off' : 'eye'}" class="w-5 h-5"></i>`;
+            lucide.createIcons();
+        });
+
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const usuario = usuarioInput.value.trim();
+            const contrasena = contrasenaInput.value.trim();
+
+            if (!usuario || !contrasena) {
+                mostrarAlerta('Por favor complete todos los campos', 'danger');
+                return;
+            }
+
+            btnLogin.disabled = true;
+            const originalText = btnLogin.innerHTML;
+            btnLogin.innerHTML = '<span class="flex items-center justify-center gap-2"><svg class="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> VALIDANDO...</span>';
+
+            try {
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ usuario, contrasena })
+                });
+
+                const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+                if (!contentType.includes('application/json')) {
+                    throw new Error(`Respuesta no JSON (${response.status}). Verifique web.config/reverse proxy de /api.`);
+                }
+
+                const data = await response.json();
+
+                if (data.success && data.usuario && data.token) {
+                    localStorage.setItem('usuario', JSON.stringify(data.usuario));
+                    localStorage.setItem('token', data.token);
+                    mostrarAlerta('Bienvenido. Redirigiendo...', 'success');
+                    setTimeout(() => {
+                        window.location.href = `${APP_BASE_PATH}/HTML/dashboard.html`;
+                    }, 800);
+                    return;
+                }
+
+                limpiarSesionCorrupta();
+                mostrarAlerta(data.message || 'Credenciales incorrectas', 'danger');
+            } catch (error) {
+                console.error('Error de login:', error);
+                limpiarSesionCorrupta();
+                mostrarAlerta('Error de conexión. Verifique el servidor.', 'danger');
+            } finally {
+                btnLogin.disabled = false;
+                btnLogin.innerHTML = originalText;
+            }
+        });
+    </script>
+</body>
+</html>
+
+
+
+

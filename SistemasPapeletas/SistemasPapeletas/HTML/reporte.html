@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#0b1220" />
+    <link rel="icon" type="image/png" href="/img/logo-gp.png" />
+    <link rel="apple-touch-icon" href="/img/logo-gp.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <title>Papeleta de Permiso - Sistema GP</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <style>
+        /* RESET Y BASE */
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Arial, sans-serif; 
+            background: #cbd5e1; 
+            padding: 20px;
+            color: #1e293b;
+        }
+
+        /* ZONA DE BOTONES (NO SE IMPRIME) */
+        .no-print-zone { 
+            display: flex; 
+            justify-content: center; 
+            gap: 15px; 
+            margin-bottom: 20px; 
+        }
+        
+        /* FORMATO A4 ESTRICTO */
+        #area-pdf { 
+            width: 210mm; 
+            background: white; 
+            margin: 0 auto; 
+            min-height: 297mm; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+
+        /* DISEÑO DE TRIPLE PAPELETA */
+        .papeleta { 
+            height: 99mm; /* 297 / 3 */
+            padding: 12mm 15mm; 
+            border-bottom: 2px dashed #94a3b8; 
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .papeleta:last-child { border-bottom: none; }
+
+        /* CABECERA */
+        .header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: flex-start;
+            border-bottom: 2px solid #667eea; 
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+        }
+        .header h1 { font-size: 1.4rem; color: #0f172a; margin-bottom: 2px; }
+        .header h2 { font-size: 1rem; color: #667eea; font-weight: 600; text-transform: uppercase; }
+        
+        .num-box { 
+            background: #667eea; 
+            color: white; 
+            padding: 8px 15px; 
+            border-radius: 6px; 
+            font-weight: bold; 
+            font-size: 1.1rem;
+            text-align: center;
+        }
+
+        /* GRILLA DE DATOS */
+        .datos-grid { 
+            display: grid; 
+            grid-template-columns: 2fr 1fr 1fr; 
+            gap: 12px; 
+            margin-bottom: 15px;
+        }
+        .dato-item { 
+            display: flex; 
+            flex-direction: column; 
+            border-bottom: 1px solid #e2e8f0; 
+            padding-bottom: 4px;
+        }
+        .full { grid-column: span 3; }
+        .dato-item label { 
+            font-size: 8pt; 
+            color: #64748b; 
+            font-weight: bold; 
+            text-transform: uppercase; 
+            margin-bottom: 2px;
+        }
+        .dato-item span { font-size: 10.5pt; color: #1e293b; min-height: 20px; }
+
+        /* BLOQUE DE HORARIOS */
+        .horarios-block { 
+            display: flex; 
+            justify-content: space-around; 
+            background: #f8fafc; 
+            padding: 10px; 
+            margin: 10px 0; 
+            border: 1px solid #e2e8f0; 
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 10pt;
+        }
+
+        /* FIRMAS */
+        .firmas-container { 
+            display: flex; 
+            justify-content: space-between; 
+            margin-top: auto; /* Empuja las firmas al final de la papeleta */
+            padding-bottom: 5px;
+        }
+        .firma-espacio { 
+            width: 30%; 
+            border-top: 1px solid #0f172a; 
+            text-align: center; 
+            font-size: 8.5pt; 
+            padding-top: 6px; 
+        }
+
+        /* ETIQUETA COPIA */
+        .copia-tag { 
+            position: absolute; 
+            top: 8px; 
+            right: 15px; 
+            font-size: 7.5pt; 
+            color: #94a3b8; 
+            font-weight: bold; 
+            letter-spacing: 1px;
+        }
+
+        /* BOTONES INTERFAZ */
+        .btn { 
+            padding: 12px 25px; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            color: white; 
+            font-weight: bold; 
+            display: flex; 
+            align-items: center; 
+            gap: 8px;
+            transition: transform 0.2s, background 0.2s;
+        }
+        .btn:active { transform: scale(0.95); }
+        .btn-descargar { background: #ef4444; }
+        .btn-descargar:hover { background: #dc2626; }
+        .btn-cerrar { background: #475569; }
+
+        /* IMPRESIÓN */
+        @media print { 
+            .no-print-zone { display: none !important; } 
+            body { padding: 0; background: white; } 
+            #area-pdf { box-shadow: none; margin: 0; width: 100%; }
+            .papeleta { border-bottom: 1px dashed #000; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Boton Hamburguesa para moviles -->
+<button class="hamburger" id="hamburger">
+  <i class="fas fa-bars"></i>
+</button>
+
+<!-- Overlay -->
+<div class="overlay" id="overlay"></div>
+
+<!-- Sidebar -->
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div class="profile-info">
+      <!-- si no tienes imagen, puedes poner un ?cono o dejarlo -->
+      <img src="../img/user.png" alt="Profile" class="profile-img" onerror="this.style.display='none'">
+      <div class="profile-text">
+        <h3 id="sbUserName">Usuario</h3>
+        <p id="sbUserRole">ROL</p>
+      </div>
+    </div>
+    <button class="toggle-btn" id="toggleBtn">
+      <i class="fas fa-chevron-left"></i>
+    </button>
+  </div>
+
+  <div class="search-box">
+    <i class="fas fa-search"></i>
+    <input type="text" placeholder="Buscar...">
+  </div>
+
+  <nav class="menu">
+    <a href="dashboard.html" class="menu-item" id="mDashboard">
+      <i class="fas fa-home"></i><span>Dashboard</span>
+    </a>
+
+    <a href="formulario-papeleta.html" class="menu-item" id="mNueva">
+      <i class="fas fa-plus-circle"></i><span>Nueva Papeleta</span>
+    </a>
+
+    <a href="permisos.html" class="menu-item" id="mPermisos">
+      <i class="fas fa-file-alt"></i><span>Papeletas</span>
+    </a>
+
+    <a href="trabajadores.html" class="menu-item" id="mTrabajadores">
+      <i class="fas fa-users"></i><span>Trabajadores</span>
+    </a>
+
+    <a href="reporte.html" class="menu-item" id="mReportes">
+      <i class="fas fa-chart-line"></i><span>Reportes</span>
+    </a>
+  
+    <a href="perfil.html" class="menu-item" id="mPerfil">
+      <i class="fas fa-user-cog"></i><span>Perfil</span>
+    </a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <a href="#" class="menu-item" id="btnSidebarLogout">
+      <i class="fas fa-right-from-bracket"></i><span>Logout</span>
+    </a>
+
+    <div class="menu-item theme-toggle">
+      <i class="fas fa-moon"></i><span>Dark Mode</span>
+      <label class="switch">
+        <input type="checkbox" id="themeToggle">
+        <span class="slider"></span>
+      </label>
+    </div>
+  </div>
+</div>
+
+
+    <div class="no-print-zone">
+        <button class="btn btn-descargar" onclick="descargarPDF()">
+            <i class="fas fa-file-pdf"></i> DESCARGAR O GUARDAR PDF
+        </button>
+        <button class="btn btn-cerrar" onclick="window.close()">
+            <i class="fas fa-times"></i> CERRAR VENTANA
+        </button>
+    </div>
+
+    <div id="area-pdf">
+        <div style="text-align:center; padding: 150px;">
+            <i class="fas fa-spinner fa-spin fa-3x" style="color:#667eea"></i>
+            <p style="margin-top:15px; color:#64748b;">Obteniendo información del servidor...</p>
+        </div>
+    </div>
+
+
+<div id="modalVisor" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:9999;">
+    <div style="width:90%; height:90%; background:white; margin:2% auto; border-radius:10px; overflow:hidden;">
+        <button onclick="cerrarModal()">Cerrar</button>
+        <iframe id="visorPapeleta" src="" style="width:100%; height:100%; border:none;"></iframe>
+    </div>
+</div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const id = urlParams.get('id');
+
+        window.onload = async () => {
+            if (!id) {
+                document.getElementById('area-pdf').innerHTML = `<p style="padding:50px; text-align:center; color:red;">Error: ID de papeleta no especificado.</p>`;
+                return;
+            }
+
+            try {
+                console.log("Solicitando datos para ID:", id);
+                const p = await PapeletaPermisoAPI.obtenerReporte(id);
+                
+                if (!p) {
+                    mostrarError("No se encontró la información de la papeleta.");
+                    return;
+                }
+
+                document.getElementById('area-pdf').innerHTML = generarHTMLTriplicado(p);
+                console.log("Vista de impresión generada");
+
+            } catch (err) {
+                console.error(" Error:", err);
+                mostrarError("Error al conectar con el servidor: " + err.message);
+            }
+        };
+
+        function generarHTMLTriplicado(p) {
+            const copias = ["COLABORADOR", "VIGILANCIA", "RECURSOS HUMANOS"];
+            
+            // Helpers para formatear dentro de la funci?n
+            const fecha = p.FechaPermisoPP ? new Date(p.FechaPermisoPP).toLocaleDateString('es-PE', { day:'2-digit', month:'2-digit', year:'numeric' }) : '---';
+            const trabajador = p.TrabajadorPP || '---';
+            const dni = p.DOIPP || '---';
+            const area = p.AreaPP || 'SISTEMAS';
+            const motivo = p.MotivoPP || 'Particular';
+            const numero = p.NumeroPP || p.NUMERO_PP || 'S/N';
+
+            return copias.map(tipo => `
+                <div class="papeleta">
+                    <div class="copia-tag">COPIA ${tipo}</div>
+                    
+                    <div class="header">
+                        <div>
+                            <h1>GRUPO PECUARIO S.A.C.</h1>
+                            <h2>PAPELETA DE PERMISO</h2>
+                        </div>
+                        <div class="num-box">N° ${numero}</div>
+                    </div>
+
+                    <div class="datos-grid">
+                        <div class="dato-item full">
+                            <label>TRABAJADOR</label>
+                            <span>${trabajador}</span>
+                        </div>
+                        <div class="dato-item">
+                            <label>DNI</label>
+                            <span>${dni}</span>
+                        </div>
+                        <div class="dato-item">
+                            <label>ÁREA</label>
+                            <span>${area}</span>
+                        </div>
+                        <div class="dato-item">
+                            <label>FECHA PERMISO</label>
+                            <span>${fecha}</span>
+                        </div>
+                        <div class="dato-item full">
+                            <label>MOTIVO / ASUNTO</label>
+                            <span>${motivo}</span>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; justify-content: space-between; padding: 5px 0; margin: 5px 0; border-top: 1px solid #eee; border-bottom: 1px solid #eee; font-size: 8.5pt;">
+    <span style="width: 30%;"><strong>Salida:</strong> ${p.HSalidaPP || '--:--'}</span>
+    <span style="width: 30%; text-align: center;"><strong>Retorno:</strong> ${p.HRetornoPP || '--:--'}</span>
+    <span style="width: 30%; text-align: right;"><strong>Total:</strong> ${p.TiempoPP || '00:00'}</span>
+</div>
+
+                    <div class="firmas-container">
+                        <div class="firma-espacio">Firma del Colaborador</div>
+                        <div class="firma-espacio">V°B° Jefe Inmediato</div>
+                        <div class="firma-espacio">V°B° Vigilancia / RRHH</div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function descargarPDF() {
+            const element = document.getElementById('area-pdf');
+            const numPapeleta = id || "reporte";
+
+            if (element.innerText.includes("Obteniendo")) {
+                alert("Los datos a?n no se han cargado.");
+                return;
+            }
+
+            const opt = {
+                margin: 0,
+                filename: `Papeleta_N${numPapeleta}.pdf`,
+                image: { type: 'jpeg', quality: 0.98 },
+                html2canvas: { 
+                    scale: 2, 
+                    useCORS: true, 
+                    letterRendering: true 
+                },
+                jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            console.log("Generando archivo PDF...");
+            html2pdf().set(opt).from(element).save()
+                .then(() => console.log("PDF guardado exitosamente"))
+                .catch(err => alert("Error al generar PDF: " + err.message));
+        }
+
+        function mostrarError(msg) {
+            document.getElementById('area-pdf').innerHTML = `
+                <div style="text-align:center; padding:50px; color:#ef4444;">
+                    <i class="fas fa-exclamation-circle fa-2x"></i>
+                    <p style="margin-top:10px; font-weight:bold;">${msg}</p>
+                </div>`;
+        }
+ 
+    </script>
+    <script src="../js/api/permisos.api.js"></script>
+    <script src="../js/controllers/permisos.controller.js"></script>
+    <script src="../js/api/papeletas.api.js"></script>
+    <script src="../js/api/api-client.js"></script>
+   <script src="../js/sidebar.js"></script>
+   
+  <script>
+    // Cargar datos del usuario en el sidebar
+    (function () {
+      const raw = localStorage.getItem('usuario');
+      if (!raw || raw === 'undefined' || raw === 'null') return;
+      try {
+        const u = JSON.parse(raw);
+        const elName = document.getElementById('sbUserName');
+        const elRole = document.getElementById('sbUserRole');
+        if (elName) elName.textContent = u.nombre || u.NombreCompleto || 'Usuario';
+        if (elRole) elRole.textContent = u.rol    || u.Rol            || 'ROL';
+      } catch {}
+    })();
+
+    (function () {
+      const currentPage = (location.pathname.split('/').pop() || '').toLowerCase();
+      const menuMap = {
+        'dashboard.html':           'mDashboard',
+        'formulario-papeleta.html': 'mNueva',
+        'permisos.html':            'mPermisos',
+        'trabajadores.html':        'mTrabajadores',
+        'reporte.html':             'mReportes',
+        'perfil.html':              'mPerfil'
+      };
+      const activeMenuId = menuMap[currentPage];
+      if (activeMenuId) document.getElementById(activeMenuId)?.classList.add('active');
+    })();
+  </script>
+
+</body>
+
+
+</html>

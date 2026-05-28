@@ -1,0 +1,93 @@
+/* ===== Slide moderno ===== */
+#slideOverlay.show{
+  backdrop-filter: blur(6px);
+}
+
+#slidePapeleta{
+  border-radius: 18px;
+  box-shadow: 0 22px 70px rgba(0,0,0,.18);
+  overflow: hidden;
+}
+
+/* Layout responsive del formulario dentro del slide */
+.slide-form{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+@media (max-width: 860px){
+  .slide-form{ grid-template-columns: 1fr; }
+}
+
+/* Campos */
+.field{
+  display:flex;
+  flex-direction: column;
+  gap: 6px;
+  position: relative; /* ✅ importante para el autocomplete */
+}
+
+.field label{
+  font-size: 13px;
+  font-weight: 700;
+  opacity: .85;
+}
+
+.field input, .field select, .field textarea{
+  padding: 12px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(0,0,0,.12);
+  outline: none;
+  transition: .12s ease;
+  background: #fff;
+}
+
+.field input:focus, .field select:focus, .field textarea:focus{
+  border-color: rgba(17,24,39,.32);
+  transform: translateY(-1px);
+}
+
+/* ===== Autocomplete moderno ===== */
+.autocomplete-box{
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 100%;
+  background: #fff;
+  border: 1px solid rgba(0,0,0,.12);
+  border-radius: 14px;
+  box-shadow: 0 16px 40px rgba(0,0,0,.14);
+  overflow: hidden;
+  display: none;
+  z-index: 9999;
+}
+
+.autocomplete-box.show{ display: block; }
+
+.ac-item{
+  display:flex;
+  gap: 10px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: .12s ease;
+}
+
+.ac-item:hover{ background: rgba(17,24,39,.06); }
+
+.ac-avatar{
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #111827;
+  color: #fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight: 900;
+}
+
+.ac-text{ display:flex; flex-direction: column; gap: 2px; }
+.ac-title{ font-weight: 800; }
+.ac-sub{ font-size: 12px; opacity: .7; }
+

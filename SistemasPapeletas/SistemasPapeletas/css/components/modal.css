@@ -1,0 +1,69 @@
+/* Modal base */
+.gp-modal{
+  position: fixed;
+  inset: 0;
+  display: none;
+  z-index: 80;
+}
+
+.gp-modal[aria-hidden="false"]{
+  display: block;
+}
+
+.gp-modal-backdrop{
+  position:absolute;
+  inset:0;
+  background: rgba(0,0,0,.42);
+  backdrop-filter: blur(2px);
+}
+
+.gp-modal-dialog{
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(1100px, 92vw);
+  height: min(90vh, 820px);
+  background: rgba(255,255,255,.98);
+  border-radius: 18px;
+  box-shadow: 0 25px 80px rgba(0,0,0,.22);
+  overflow: hidden;
+  border: 1px solid rgba(17,24,39,.10);
+  display:flex;
+  flex-direction: column;
+}
+
+.gp-modal-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid rgba(17,24,39,.08);
+}
+.gp-modal-header h3{
+  margin:0;
+  font-size: 1.05rem;
+  font-weight: 950;
+}
+
+.gp-modal-close{
+  width:42px;
+  height:42px;
+  border-radius:14px;
+  border: 1px solid rgba(17,24,39,.10);
+  background: rgba(17,24,39,.04);
+  cursor:pointer;
+  font-size: 18px;
+}
+
+.gp-modal-frame{
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: var(--bg);
+}
+
+/* lock scroll cuando modal abierto */
+body.modal-open{
+  overflow: hidden;
+}
