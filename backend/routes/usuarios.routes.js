@@ -1,4 +1,7 @@
 ﻿const { hashPassword } = require('../services/password.service');
+const { normalizeRole } = require('../src/security/roles');
+const { canManageUsers } = require('../src/security/policy');
+const { assertPolicy } = require('../src/middlewares/authorize');
 
 function registerUsuariosRoutes(app, deps) {
   const {
@@ -11,21 +14,6 @@ function registerUsuariosRoutes(app, deps) {
     requireAprobacionRole
   } = deps;
   const getPool = deps.getPool || (() => deps.pool);
-
-  const normalizeRole = (value) => String(value || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^A-Za-z0-9 ]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toUpperCase();
-
-  const assertAdmin = (req, res) => {
-    const role = normalizeRole(req.user?.rol || '');
-    if (role === 'ADMIN' || role === 'ADMINISTRADOR' || role === 'ADMINISTRADOR DEL SISTEMA') return true;
-    res.status(403).json({ success: false, message: 'Solo ADMIN puede gestionar usuarios ERP' });
-    return false;
-  };
 
   const normalizeErpActivo = (value) => (String(value ?? '').trim() === '0' || String(value ?? '').trim() === '2' ? '2' : '1');
   const apiActivoFromDb = (value) => (normalizeErpActivo(value) === '1' ? '1' : '0');
@@ -296,7 +284,7 @@ function registerUsuariosRoutes(app, deps) {
 
   app.get('/api/usuarios-erp/roles', requireAprobacionRole, async (req, res) => {
     try {
-      if (!assertAdmin(req, res)) return;
+      if (!assertPolicy(canManageUsers(req.user), res)) return;
 
       const result = await getPool().request().query(`
         SELECT
@@ -317,7 +305,7 @@ function registerUsuariosRoutes(app, deps) {
 
   app.get('/api/usuarios-erp/buscar', requireAprobacionRole, async (req, res) => {
     try {
-      if (!assertAdmin(req, res)) return;
+      if (!assertPolicy(canManageUsers(req.user), res)) return;
 
       const termRaw = String(req.query?.term || '').trim();
       if (termRaw.length < 2) {
@@ -359,7 +347,7 @@ function registerUsuariosRoutes(app, deps) {
 
   app.get('/api/usuarios-erp/panel', requireAprobacionRole, async (req, res) => {
     try {
-      if (!assertAdmin(req, res)) return;
+      if (!assertPolicy(canManageUsers(req.user), res)) return;
       await ensureErpAuditTable();
 
       const segment = String(req.query?.segment || 'all').trim().toLowerCase();
@@ -443,7 +431,7 @@ function registerUsuariosRoutes(app, deps) {
 
   app.put('/api/usuarios-erp/roles/:userLogon', requireAprobacionRole, async (req, res) => {
     try {
-      if (!assertAdmin(req, res)) return;
+      if (!assertPolicy(canManageUsers(req.user), res)) return;
       await ensureErpAuditTable();
 
       const userLogon = String(req.params.userLogon || '').trim();
@@ -500,7 +488,7 @@ function registerUsuariosRoutes(app, deps) {
 
   app.post('/api/usuarios-erp/acciones/:userLogon', requireAprobacionRole, async (req, res) => {
     try {
-      if (!assertAdmin(req, res)) return;
+      if (!assertPolicy(canManageUsers(req.user), res)) return;
       await ensureErpAuditTable();
 
       const userLogon = String(req.params.userLogon || '').trim();
@@ -573,7 +561,7 @@ function registerUsuariosRoutes(app, deps) {
 
   app.get('/api/usuarios-erp/historial/:userLogon', requireAprobacionRole, async (req, res) => {
     try {
-      if (!assertAdmin(req, res)) return;
+      if (!assertPolicy(canManageUsers(req.user), res)) return;
       await ensureErpAuditTable();
 
       const userLogon = String(req.params.userLogon || '').trim();

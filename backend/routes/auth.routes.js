@@ -1,4 +1,5 @@
 const { verifyPassword, isHashedPassword } = require('../services/password.service');
+const { isUserActive, roleFromSwNivel } = require('../src/security/roles');
 
 function registerAuthRoutes(app, deps) {
   const { pool, sql, createToken, requireAuth, getProfilePhotoUrl, registrarAuditoria, getClientIp } = deps;
@@ -42,10 +43,7 @@ function registerAuthRoutes(app, deps) {
   };
 
   const isErpUserActive = (estadoRaw) => {
-    const estado = String(estadoRaw ?? '').trim().toUpperCase();
-    if (!estado) return true;
-    const inactiveStates = new Set(['INACTIVO', 'I', 'BLOQUEADO', 'B', 'NO', 'N', '2', '9']);
-    return !inactiveStates.has(estado);
+    return isUserActive(estadoRaw);
   };
 
   const matchesErpPassword = (inputPassword, erpRow) => {
@@ -78,13 +76,6 @@ function registerAuthRoutes(app, deps) {
   const normalizeErpAppActivo = (value) => {
     const raw = String(value ?? '').trim();
     return raw === '0' || raw === '2' ? '2' : '1';
-  };
-
-  const roleFromSwNivel = (swNivel) => {
-    const nivel = Number(swNivel || 0);
-    if (nivel >= 4) return 'ADMIN';
-    if (nivel === 3) return 'RRHH';
-    return 'USUARIO';
   };
 
   const resolveErpAccess = async (userLogon) => {
@@ -182,7 +173,7 @@ function registerAuthRoutes(app, deps) {
         });
         return res.status(400).json({
           success: false,
-          message: 'Usuario y contraseña son requeridos'
+          message: 'Usuario y contraseï¿½a son requeridos'
         });
       }
 
@@ -235,13 +226,13 @@ function registerAuthRoutes(app, deps) {
           });
           return res.status(401).json({
             success: false,
-            message: 'Credenciales inválidas'
+            message: 'Credenciales invï¿½lidas'
           });
         }
 
         data = {
           Success: 1,
-          Message: 'Inicio de sesión correcto',
+          Message: 'Inicio de sesiï¿½n correcto',
           IdUsuario: dbUser.IdUsuario,
           Usuario: dbUser.Usuario,
           NombreCompleto: dbUser.NombreCompleto,
@@ -314,7 +305,7 @@ function registerAuthRoutes(app, deps) {
                 }
                 data = {
                   Success: 1,
-                  Message: 'Inicio de sesión correcto (ERP)',
+                  Message: 'Inicio de sesiï¿½n correcto (ERP)',
                   IdUsuario: 0,
                   Usuario: erpUser.User_Logon,
                   NombreCompleto: erpAccess.nombreCompleto || erpUser.User_Fullname || erpUser.User_Logon,
@@ -390,7 +381,7 @@ function registerAuthRoutes(app, deps) {
       });
       return res.status(401).json({
         success: false,
-        message: data?.Message || 'Credenciales inválidas'
+        message: data?.Message || 'Credenciales invï¿½lidas'
       });
     } catch (error) {
       console.error('Error en login:', error);

@@ -6,6 +6,11 @@
   const overlay = document.getElementById('overlay');
   const sbBrand = document.querySelector('.sb-brand');
 
+  // Ocultar logo si la imagen no carga (reemplaza el onerror inline del HTML).
+  document.querySelectorAll('.sb-brand img.sb-logo').forEach((img) => {
+    img.addEventListener('error', () => { img.style.display = 'none'; });
+  });
+
   const hamburger = document.getElementById('hamburger');
   const sbClose = document.getElementById('sbClose') || document.getElementById('toggleBtn');
   const DESKTOP_BREAKPOINT = 901;

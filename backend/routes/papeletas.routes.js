@@ -1,4 +1,7 @@
 ﻿const ExcelJS = require('exceljs');
+const { isPrivilegedRole } = require('../src/security/roles');
+const { canEditPapeleta, canDownloadDocument } = require('../src/security/policy');
+const { assertPolicy } = require('../src/middlewares/authorize');
 
 function registerPapeletasRoutes(app, deps) {
   const {
@@ -27,16 +30,6 @@ function registerPapeletasRoutes(app, deps) {
   const porEstadoCache = {
     data: null,
     expiresAt: 0
-  };
-
-  const canEditClosedPapeleta = (user) => {
-    return isPrivilegedRole(user?.rol || user?.Rol || user?.role);
-  };
-
-  const isClosedPapeleta = (row) => {
-    const estado = String(row?.EstadoAprobacion || '').toUpperCase().trim();
-    const activo = String(row?.ActivoPP || '1').trim();
-    return activo === '2' || ['APROBADO_RRHH', 'APROBADO_JEFE', 'RECHAZADO'].includes(estado);
   };
 
   const getFriendlySqlErrorMessage = (error) => {
@@ -216,27 +209,6 @@ function registerPapeletasRoutes(app, deps) {
       hasFechaVacDesdePP: vacacionesSchemaCache.hasFechaVacDesdePP,
       hasFechaVacHastaPP: vacacionesSchemaCache.hasFechaVacHastaPP
     };
-  };
-
-  const normalizeRole = (role) => String(role || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^A-Za-z0-9 ]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toUpperCase();
-
-  const isPrivilegedRole = (role) => {
-    const r = normalizeRole(role);
-    const allowed = new Set([
-      'ADMIN',
-      'ADMINISTRADOR',
-      'ADMINISTRADOR DEL SISTEMA',
-      'RRHH',
-      'RR HH',
-      'RECURSOS HUMANOS'
-    ]);
-    return allowed.has(r);
   };
 
   const getErpAreaAccess = async (userLogon) => {
@@ -1089,11 +1061,8 @@ function registerPapeletasRoutes(app, deps) {
         return res.status(404).json({ success: false, message: 'Papeleta no encontrada' });
       }
 
-      if (isClosedPapeleta(previo) && !canEditClosedPapeleta(req.user)) {
-        return res.status(403).json({
-          success: false,
-          message: 'No se puede editar una papeleta aprobada, rechazada o anulada.'
-        });
+      if (!assertPolicy(canEditPapeleta(req.user, previo), res)) {
+        return;
       }
 
       let horaSalida, horaRetorno, tiempo;
@@ -1340,8 +1309,8 @@ function registerPapeletasRoutes(app, deps) {
           WHERE IdPP = @IdPP
         `);
       const estadoActual = String(estadoResult.recordset?.[0]?.EstadoAprobacion || 'PENDIENTE').toUpperCase();
-      if (estadoActual !== 'APROBADO_RRHH') {
-        return res.status(403).json({ success: false, message: 'Solo se puede imprimir una papeleta aprobada por RRHH' });
+      if (!assertPolicy(canDownloadDocument(req.user, { EstadoAprobacion: estadoActual }), res)) {
+        return;
       }
 
       const result = await getPool().request().input('IdPP', sql.Int, id).execute('reporte_PapeletaPermiso_gp');

@@ -19,14 +19,6 @@
     <link rel="stylesheet" href="../css/pages/formulario.page.css">
 </head>
 <body>
-    <script>
-      // Si el formulario está dentro de un iframe (modal), aplicamos estilos especiales
-      if (window.self !== window.top) {
-        document.documentElement.classList.add("is-iframe");
-        document.documentElement.classList.add("in-modal");
-      }
-    </script>
-
 
     <!-- Botón Hamburguesa para móviles -->
     <button class="hamburger" id="hamburger">
@@ -41,7 +33,7 @@
       <div class="sidebar-header">
         <div class="profile-info">
           <!-- si no tienes imagen, puedes poner un ícono o dejarlo -->
-          <img src="../img/logo-gp.png" alt="Profile" class="profile-img" onerror="this.style.display='none'">
+          <img src="../img/logo-gp.png" alt="Profile" class="profile-img">
           <div class="profile-text">
           </div>
         </div>
@@ -300,40 +292,14 @@
     <script src="../js/api/catalogos.api.js"></script>
     <script src="../js/utils/formatters.js"></script>
     <script src="../js/utils/validators.js"></script>
+    <script src="../js/utils/formulario-papeleta-formatters.js"></script>
+    <script src="../js/services/formulario-papeleta.service.js"></script>
     <script src="../js/services/papeletas.service.js"></script>
     <script src="../js/services/ui-selectors.service.js?v=2"></script>
     <script src="../js/services/trabajadores.service.js"></script>
-    <script src="../js/controllers/formulario-papeleta.controller.js?v=2"></script>
+    <script src="../js/views/formulario-papeleta.view.js"></script>
+    <script src="../js/controllers/formulario-papeleta.controller.js"></script>
     <script src="../js/sidebar.js"></script>
-    <script>
-      (function () {
-        const raw = localStorage.getItem('usuario');
-        if (!raw || raw === 'undefined' || raw === 'null') {
-          window.location.href = '../index.html';
-          return;
-        }
-        try {
-          const u = JSON.parse(raw);
-          const elName = document.getElementById('sbUserName');
-          const elRole = document.getElementById('sbUserRole');
-          if (elName) elName.textContent = u.nombre || u.NombreCompleto || 'Usuario';
-          if (elRole) elRole.textContent = u.rol || u.Rol || 'ROL';
-        } catch {}
-      })();
-
-      (function () {
-        const currentPage = (location.pathname.split('/').pop() || '').toLowerCase();
-        const menuMap = {
-          'dashboard.html': 'mDashboard',
-          'formulario-papeleta.html': 'mNueva',
-          'permisos.html': 'mPermisos',
-          'trabajadores.html': 'mTrabajadores',
-          'reporte.html': 'mReportes',
-          'perfil.html': 'mPerfil'
-        };
-        const activeMenuId = menuMap[currentPage];
-        if (activeMenuId) document.getElementById(activeMenuId)?.classList.add('active');
-      })();
-    </script>
+    <script src="../js/pages/formulario-papeleta.page.js"></script>
 </body>
 </html>

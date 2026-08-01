@@ -11,10 +11,10 @@ const { convertirHoraSQL } = require('./services/time.service');
 const { registerPapeletasRoutes } = require('./routes/papeletas.routes');
 const { registerUsuariosRoutes } = require('./routes/usuarios.routes');
 const { registerTrabajadoresRoutes } = require('./routes/trabajadores.routes');
-const { registerCatalogosRoutes } = require('./routes/catalogos.routes');
-const { registerSystemRoutes } = require('./routes/system.routes');
+const { registerCatalogosRoutes } = require('./src/routes/catalogos.routes');
+const { registerSystemRoutes } = require('./src/routes/system.routes');
 const { registerAuthRoutes } = require('./routes/auth.routes');
-const { registerMonitoringRoutes } = require('./routes/monitoring.routes');
+const { registerMonitoringRoutes } = require('./src/routes/monitoring.routes');
 
 function loadEnvFile() {
   const envPath = path.join(__dirname, '.env');

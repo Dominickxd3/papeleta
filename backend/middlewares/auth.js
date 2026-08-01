@@ -1,14 +1,5 @@
 const jwt = require('jsonwebtoken');
-
-function normalizeRole(role) {
-  return String(role || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^A-Za-z0-9 ]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toUpperCase();
-}
+const { normalizeRole } = require('../src/security/roles');
 
 function createAuthTools(config) {
   const {

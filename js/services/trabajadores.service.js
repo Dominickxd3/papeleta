@@ -91,6 +91,54 @@
       .slice(0, 10);
   }
 
+  static esTrabajadorActivo(trabajador) {
+    if (trabajador.Estado === 'Activo' || trabajador.Estado === 'ACTIVO') return true;
+    if (trabajador.ESTADO === 'Activo' || trabajador.ESTADO === 'ACTIVO') return true;
+    if (trabajador.Activo === '1' || trabajador.Activo === 1) return true;
+    if (trabajador.ACTIVO === '1' || trabajador.ACTIVO === 1) return true;
+    return false;
+  }
+
+  static validarTrabajador(t) {
+    const errores = [];
+    if (!t.DOI || t.DOI.length !== 8 || !/^\d{8}$/.test(t.DOI)) errores.push('El DOI/DNI debe tener exactamente 8 digitos');
+    if (!t.Nombres?.trim()) errores.push('Los nombres son obligatorios');
+    if (!t.Apellidos?.trim()) errores.push('Los apellidos son obligatorios');
+    if (!t.Area?.trim()) errores.push('El area es obligatoria');
+    return errores;
+  }
+
+  static obtenerUltimaSyncLocal(data) {
+    const valores = (Array.isArray(data) ? data : [])
+      .map((t) => t.FechaSync || t.FECHASYNC)
+      .filter(Boolean)
+      .map((value) => new Date(value))
+      .filter((date) => !Number.isNaN(date.getTime()))
+      .sort((a, b) => b.getTime() - a.getTime());
+
+    return valores[0] || null;
+  }
+
+  static filtrar(data, { busqueda = '', area = '', estado = '' } = {}) {
+    let resultado = Array.isArray(data) ? [...data] : [];
+
+    const term = normalizeText(busqueda);
+    if (term) {
+      const tokens = term.split(' ').filter(Boolean);
+      resultado = resultado.filter((t) => {
+        const haystack = buildTrabajadorSearchText(t);
+        return tokens.every((tk) => haystack.includes(tk));
+      });
+    }
+
+    if (area) resultado = resultado.filter((t) => (t.Area || t.AREA) === area);
+
+    if (estado === 'activo') resultado = resultado.filter((t) => this.esTrabajadorActivo(t));
+    else if (estado === 'inactivo') resultado = resultado.filter((t) => !this.esTrabajadorActivo(t));
+
+    return resultado;
+  }
+
   static async _obtenerDesdeAPI() {
     if (window.TrabajadoresAPI?.listarTodos) {
       return await window.TrabajadoresAPI.listarTodos();

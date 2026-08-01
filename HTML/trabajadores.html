@@ -27,55 +27,11 @@
   <link rel="stylesheet" href="../css/pages/trabajadores.page.css">
 </head>
 <body>
-  <script>
-    // role-guard-trabajadores
-    (function () {
-      function normalizeRole(role) {
-        return String(role || "")
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, "")
-          .replace(/[^A-Za-z0-9 ]/g, " ")
-          .replace(/\s+/g, " ")
-          .trim()
-          .toUpperCase();
-      }
-
-      function canAccessTrabajadores(role) {
-        const r = normalizeRole(role);
-        const allowed = new Set([
-          'ADMIN',
-          'ADMINISTRADOR',
-          'ADMINISTRADOR DEL SISTEMA',
-          'RRHH',
-          'RR HH',
-          'RECURSOS HUMANOS'
-        ]);
-        return allowed.has(r);
-      }
-
-      const raw = localStorage.getItem('usuario');
-      if (!raw || raw === 'undefined' || raw === 'null') {
-        window.location.href = '../index.html';
-        return;
-      }
-
-      try {
-        const u = JSON.parse(raw);
-        const role = u.rol || u.Rol || '';
-        if (!canAccessTrabajadores(role)) {
-          window.location.href = 'dashboard.html';
-        }
-      } catch {
-        window.location.href = 'dashboard.html';
-      }
-    })();
-  </script>
-
   <!-- Sidebar (Drawer) -->
   <aside class="sidebar" id="sidebar">
     <div class="sb-top">
       <a class="sb-brand" href="dashboard.html">
-        <img src="../img/logo-gp.png" alt="Grupo Pecuario" class="sb-logo" onerror="this.style.display='none'">
+        <img src="../img/logo-gp.png" alt="Grupo Pecuario" class="sb-logo">
         <div class="sb-brand-text">
           <div class="sb-brand-title">Grupo Pecuario</div>
           <div class="sb-brand-sub">Sistema GP</div>
@@ -349,11 +305,18 @@
   <script src="../js/api/auth.api.js"></script>
   <script src="../js/api/trabajadores.api.js"></script>
 
-  <!-- Services y controllers de Trabajadores -->
+  <!-- Utils -->
+  <script src="../js/utils/trabajadores-formatters.js"></script>
+
+  <!-- Services -->
   <script src="../js/services/trabajadores.service.js"></script>
+
+  <!-- View + Controller -->
+  <script src="../js/views/trabajadores.view.js"></script>
   <script src="../js/controllers/trabajadores.controller.js"></script>
 
-  <!-- Sidebar -->
+  <!-- Sidebar + Entrypoint -->
   <script src="../js/sidebar.js"></script>
+  <script src="../js/pages/trabajadores.page.js"></script>
 </body>
 </html>
