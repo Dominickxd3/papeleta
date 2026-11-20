@@ -204,14 +204,68 @@
               <th data-orden="diasTarde" class="sortable">Tardanzas</th>
               <th data-orden="salidas" class="sortable">Salidas antes de hora</th>
               <th data-orden="papeletas" class="sortable">Papeletas</th>
+              <th class="hr-col-action" aria-label="Ver detalle"></th>
             </tr>
           </thead>
           <tbody></tbody>
         </table>
       </div>
 
+      <nav class="hr-pager" id="hrPager" aria-label="Paginación">
+        <p class="hr-pager__info" id="hrPagerInfo"></p>
+        <div class="hr-pager__pages" id="hrPagerPages"></div>
+        <label class="hr-pager__size">
+          <span>Mostrar</span>
+          <select id="hrPorPagina">
+            <option value="10" selected>10</option>
+            <option value="20">20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+          <span>por página</span>
+        </label>
+      </nav>
+
     </section>
   </main>
+
+  <!-- Panel: historial del trabajador -->
+  <div class="hr-drawer-overlay" id="hrDrawerOverlay" hidden></div>
+  <aside class="hr-drawer" id="hrDrawer" role="dialog" aria-modal="true" aria-labelledby="hrDrawerNombre" hidden>
+    <header class="hr-drawer__head">
+      <div class="hr-worker">
+        <span class="hr-avatar hr-avatar--lg" aria-hidden="true"><i class="fa-solid fa-user"></i></span>
+        <div>
+          <div class="hr-name" id="hrDrawerNombre"></div>
+          <div class="hr-sub" id="hrDrawerSub"></div>
+        </div>
+      </div>
+      <button type="button" class="hr-icon-btn" id="hrDrawerCerrar" aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+    </header>
+    <p class="hr-drawer__periodo" id="hrDrawerPeriodo"></p>
+    <div class="hr-drawer__stats" id="hrDrawerStats"></div>
+    <div class="hr-chips" id="hrDrawerFiltros" role="group" aria-label="Filtrar días">
+      <button type="button" class="hr-chip active" data-f="" data-label="Todos">Todos</button>
+      <button type="button" class="hr-chip" data-f="tarde" data-label="Tardanzas">Tardanzas</button>
+      <button type="button" class="hr-chip" data-f="sinmarca" data-label="Sin marcas">Sin marcas</button>
+      <button type="button" class="hr-chip" data-f="salida" data-label="Salidas antes">Salidas antes</button>
+      <button type="button" class="hr-chip" data-f="papeleta" data-label="Papeletas">Papeletas</button>
+    </div>
+    <div class="hr-drawer__body">
+      <table class="hr-table hr-table--drawer">
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th class="center">Horario</th>
+            <th class="center">Entrada</th>
+            <th class="center">Salida</th>
+            <th>Detalle</th>
+          </tr>
+        </thead>
+        <tbody id="hrDrawerTabla"></tbody>
+      </table>
+    </div>
+  </aside>
 
   <script src="../js/api/api-client.js"></script>
   <script src="../js/api/auth.api.js"></script>

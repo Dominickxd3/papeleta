@@ -2,16 +2,17 @@
   'use strict';
 
   const $ = (id) => document.getElementById(id);
-  const PAGINA = 300;
   const REFRESCO_MS = 60 * 1000; // actualizacion automatica cada minuto
   const state = {
     rows: [],
     vista: 'detalle',
     todos: false,
     cargando: false,
-    visibles: PAGINA,
+    pagina: 1,
+    porPagina: 10,
     ultimaCarga: null,
-    orden: { campo: 'Trabajador', dir: 'asc' }
+    orden: { campo: 'Trabajador', dir: 'asc' },
+    panel: { dni: null, filtro: '' }
   };
 
   // ---------- utilidades ----------
@@ -182,7 +183,7 @@
     const feriado = r.Feriado === 'SI' ? '<div class="hr-sub">Feriado</div>' : '';
 
     return `
-      <tr class="hr-row">
+      <tr class="hr-row hr-clickable" data-dni="${esc(r.DNI)}" tabindex="0" title="Ver historial de ${esc(r.Trabajador)}">
         <td data-label="Fecha"><div class="hr-strong">${f.corta}</div><div class="hr-sub">${f.dia}</div></td>
         <td data-label="Trabajador">${celdaTrabajador(r.Trabajador, `${esc(r.DNI)} · ${esc(tipoTitulo(r.Cargo))}`)}</td>
         <td data-label="Horario" class="center">${horario}${feriado}</td>
@@ -197,15 +198,37 @@
   function renderDetalle(rows) {
     const tbody = $('hrTablaDetalle').querySelector('tbody');
     if (!rows.length) {
+      $('hrPager').hidden = true;
       tbody.innerHTML = '<tr><td colspan="8" class="hr-empty"><i class="fa-regular fa-calendar-xmark"></i>No hay registros para este filtro.</td></tr>';
       return;
     }
-    let html = rows.slice(0, state.visibles).map(filaDetalle).join('');
-    if (state.visibles < rows.length) {
-      html += `<tr class="hr-more"><td colspan="8"><button type="button" class="hr-btn" id="hrVerMas">Ver ${numero(Math.min(PAGINA, rows.length - state.visibles))} registros más</button></td></tr>`;
-    }
-    tbody.innerHTML = html;
-    $('hrVerMas')?.addEventListener('click', () => { state.visibles += PAGINA; render(); });
+    tbody.innerHTML = paginar(rows).map(filaDetalle).join('');
+  }
+
+  // ---------- paginacion ----------
+  function paginar(lista) {
+    const paginas = Math.max(1, Math.ceil(lista.length / state.porPagina));
+    state.pagina = Math.min(Math.max(1, state.pagina), paginas);
+    const inicio = (state.pagina - 1) * state.porPagina;
+    renderPager(lista.length, paginas, inicio);
+    return lista.slice(inicio, inicio + state.porPagina);
+  }
+
+  function renderPager(total, paginas, inicio) {
+    $('hrPager').hidden = total === 0;
+    const fin = Math.min(total, inicio + state.porPagina);
+    $('hrPagerInfo').textContent = `Mostrando ${numero(inicio + 1)}–${numero(fin)} de ${numero(total)}`;
+
+    const actual = state.pagina;
+    const nums = new Set([1, paginas, actual - 1, actual, actual + 1].filter((n) => n >= 1 && n <= paginas));
+    const orden = [...nums].sort((a, b) => a - b);
+    let html = `<button type="button" class="hr-page" data-p="${actual - 1}" ${actual === 1 ? 'disabled' : ''} aria-label="Página anterior"><i class="fa-solid fa-chevron-left"></i></button>`;
+    orden.forEach((n, i) => {
+      if (i > 0 && n - orden[i - 1] > 1) html += '<span class="hr-page-gap">…</span>';
+      html += `<button type="button" class="hr-page ${n === actual ? 'active' : ''}" data-p="${n}" ${n === actual ? 'aria-current="page"' : ''}>${n}</button>`;
+    });
+    html += `<button type="button" class="hr-page" data-p="${actual + 1}" ${actual === paginas ? 'disabled' : ''} aria-label="Página siguiente"><i class="fa-solid fa-chevron-right"></i></button>`;
+    $('hrPagerPages').innerHTML = html;
   }
 
   // ---------- resumen por trabajador ----------
@@ -250,36 +273,130 @@
       th.classList.toggle('sort-desc', th.dataset.orden === state.orden.campo && state.orden.dir === 'desc');
     });
     if (!resumen.length) {
-      tbody.innerHTML = '<tr><td colspan="5" class="hr-empty"><i class="fa-regular fa-user"></i>No hay registros para este filtro.</td></tr>';
+      $('hrPager').hidden = true;
+      tbody.innerHTML = '<tr><td colspan="6" class="hr-empty"><i class="fa-regular fa-user"></i>No hay registros para este filtro.</td></tr>';
       return;
     }
-    tbody.innerHTML = resumen.map((s) => {
-      const total = s.conMarca + s.sinMarca;
-      const asistencia = bloque(
+    tbody.innerHTML = paginar(resumen).map((s) => {
+      const b = bloquesResumen(s);
+      return `
+        <tr class="hr-row hr-clickable" data-dni="${esc(s.DNI)}" tabindex="0" title="Ver historial de ${esc(s.Trabajador)}">
+          <td data-label="Trabajador">${celdaTrabajador(s.Trabajador, `${esc(s.DNI)} · ${esc(tipoTitulo(s.Cargo))}`)}</td>
+          <td data-label="Asistencia">${b.asistencia}</td>
+          <td data-label="Tardanzas">${b.tardanzas}</td>
+          <td data-label="Salidas antes de hora">${b.salidas}</td>
+          <td data-label="Papeletas">${b.papeletas}</td>
+          <td class="hr-col-action"><span class="hr-link">Ver detalle <i class="fa-solid fa-chevron-right"></i></span></td>
+        </tr>`;
+    }).join('');
+  }
+
+  function bloquesResumen(s) {
+    const total = s.conMarca + s.sinMarca;
+    const sinRegistros = bloque(nota('Sin registros'), '');
+    return {
+      asistencia: bloque(
         `${numero(s.conMarca)} de ${plural(total, 'día', 'días')}`,
         s.sinMarca ? `${plural(s.sinMarca, 'día', 'días')} sin marcar` : 'Marcó todos los días',
         s.sinMarca ? 'is-bad' : ''
-      );
-      const sinRegistros = bloque(nota('Sin registros'), '');
-      const tardanzas = !s.conMarca ? sinRegistros : s.diasTarde
+      ),
+      tardanzas: !s.conMarca ? sinRegistros : s.diasTarde
         ? bloque(plural(s.diasTarde, 'día tarde', 'días tarde'), `${minutosTexto(s.minTarde)} en total`, 'is-warn')
-        : bloque(nota('Siempre puntual'), '');
-      const salidas = !s.conMarca ? sinRegistros : s.salidas
+        : bloque(nota('Siempre puntual'), ''),
+      salidas: !s.conMarca ? sinRegistros : s.salidas
         ? bloque(plural(s.salidas, 'vez', 'veces'), `${minutosTexto(s.minSalidas)} antes de hora`)
-        : bloque(nota('Ninguna'), '');
-      const papeletas = s.papeletas
+        : bloque(nota('Ninguna'), ''),
+      papeletas: s.papeletas
         ? bloque(plural(s.papeletas, 'papeleta', 'papeletas'), `${numero(s.horas, 2)} h de permiso`)
-        : bloque(nota('Sin papeletas'), '');
+        : bloque(nota('Sin papeletas'), '')
+    };
+  }
 
+  // ---------- historial de un trabajador (panel lateral) ----------
+  function detalleDia(r) {
+    const partes = [];
+    if (esSinMarca(r)) partes.push('<span class="hr-txt-bad">No marcó</span>');
+    else if (num(r.CantidadMarcas) < 2 && !esHoy(r)) partes.push('<span class="hr-txt-warn">No marcó salida</span>');
+    if (esTarde(r)) partes.push(`<span class="hr-txt-warn">Llegó ${minutosTexto(r.MinutosTarde)} tarde</span>`);
+    if (saleAntes(r)) partes.push(`<span class="hr-txt-warn">Salió ${minutosTexto(r.MinutosSalidaAntes)} antes</span>`);
+    if (tienePapeleta(r)) {
+      const motivo = tipoOracion(r.MotivoPermiso);
+      partes.push(`<span><i class="fa-regular fa-file-lines"></i> N° ${esc(r.NumeroPapeleta)} · ${esc(r.TipoPermiso || 'Papeleta')} · ${esc(r.HorarioPermiso)} (${numero(r.HorasPermiso, 2)} h)${motivo ? ` · ${esc(motivo)}` : ''}</span>`);
+    }
+    if (!partes.length) partes.push(nota(esHoy(r) && num(r.CantidadMarcas) < 2 ? 'En turno' : 'Sin novedades'));
+    return partes.join('<br>');
+  }
+
+  function renderPanel() {
+    const dni = state.panel.dni;
+    if (!dni) return;
+    const dias = state.rows.filter((r) => r.DNI === dni);
+    if (!dias.length) { cerrarPanel(); return; }
+    const r0 = dias[0];
+    const s = resumir(dias)[0];
+    const b = bloquesResumen(s);
+
+    $('hrDrawerNombre').textContent = r0.Trabajador;
+    $('hrDrawerSub').textContent = `${r0.DNI} · ${tipoTitulo(r0.Cargo)}`;
+    const d = fechaPartes($('hrDesde').value);
+    const h = fechaPartes($('hrHasta').value);
+    $('hrDrawerPeriodo').textContent = `Periodo del ${d.corta} al ${h.corta}`;
+    $('hrDrawerStats').innerHTML = `
+      <div class="hr-mini"><span>Asistencia</span>${b.asistencia}</div>
+      <div class="hr-mini"><span>Tardanzas</span>${b.tardanzas}</div>
+      <div class="hr-mini"><span>Salidas antes</span>${b.salidas}</div>
+      <div class="hr-mini"><span>Papeletas</span>${b.papeletas}</div>`;
+
+    const f = state.panel.filtro;
+    const cuenta = {
+      '': dias.length,
+      tarde: dias.filter(esTarde).length,
+      sinmarca: dias.filter(esSinMarca).length,
+      salida: dias.filter(saleAntes).length,
+      papeleta: dias.filter(tienePapeleta).length
+    };
+    document.querySelectorAll('#hrDrawerFiltros .hr-chip').forEach((c) => {
+      c.classList.toggle('active', c.dataset.f === f);
+      c.innerHTML = `${esc(c.dataset.label)} <b>${cuenta[c.dataset.f] ?? 0}</b>`;
+    });
+
+    const lista = dias.filter((r) => {
+      if (f === 'tarde') return esTarde(r);
+      if (f === 'sinmarca') return esSinMarca(r);
+      if (f === 'salida') return saleAntes(r);
+      if (f === 'papeleta') return tienePapeleta(r);
+      return true;
+    });
+
+    $('hrDrawerTabla').innerHTML = lista.length ? lista.map((r) => {
+      const fp = fechaPartes(r.Fecha);
+      const ent = hora(r.HoraEntradaProgramada);
+      const sal = hora(r.HoraSalidaProgramada);
       return `
-        <tr class="hr-row">
-          <td data-label="Trabajador">${celdaTrabajador(s.Trabajador, `${esc(s.DNI)} · ${esc(tipoTitulo(s.Cargo))}`)}</td>
-          <td data-label="Asistencia">${asistencia}</td>
-          <td data-label="Tardanzas">${tardanzas}</td>
-          <td data-label="Salidas antes de hora">${salidas}</td>
-          <td data-label="Papeletas">${papeletas}</td>
+        <tr>
+          <td><div class="hr-strong">${fp.corta}</div><div class="hr-sub">${fp.dia}</div></td>
+          <td class="center">${ent || sal ? `${esc(ent)} – ${esc(sal)}` : nota('Sin horario')}</td>
+          <td class="center">${celdaEntrada(r)}</td>
+          <td class="center">${celdaSalida(r)}</td>
+          <td class="hr-detalle">${detalleDia(r)}</td>
         </tr>`;
-    }).join('');
+    }).join('') : `<tr><td colspan="5" class="hr-empty">No hay días con este filtro.</td></tr>`;
+  }
+
+  function abrirPanel(dni) {
+    state.panel = { dni, filtro: '' };
+    $('hrDrawer').hidden = false;
+    $('hrDrawerOverlay').hidden = false;
+    document.body.classList.add('hr-no-scroll');
+    renderPanel();
+    $('hrDrawerCerrar').focus();
+  }
+
+  function cerrarPanel() {
+    state.panel.dni = null;
+    $('hrDrawer').hidden = true;
+    $('hrDrawerOverlay').hidden = true;
+    document.body.classList.remove('hr-no-scroll');
   }
 
   // ---------- render general ----------
@@ -297,7 +414,7 @@
 
   function mostrarMensaje(html) {
     const tabla = state.vista === 'detalle' ? $('hrTablaDetalle') : $('hrTablaResumen');
-    const cols = state.vista === 'detalle' ? 8 : 5;
+    const cols = state.vista === 'detalle' ? 8 : 6;
     tabla.querySelector('tbody').innerHTML = `<tr><td colspan="${cols}" class="hr-empty">${html}</td></tr>`;
   }
 
@@ -336,7 +453,7 @@
 
     state.cargando = true;
     if (!silencioso) {
-      state.visibles = PAGINA;
+      state.pagina = 1;
       $('btnHrActualizar').disabled = true;
       mostrarMensaje('<i class="fa-solid fa-spinner fa-spin"></i>Cargando horarios…');
     }
@@ -353,6 +470,7 @@
       state.ultimaCarga = Date.now();
       llenarAreas();
       render();
+      renderPanel();
       pintarEstadoVivo(false);
     } catch (error) {
       if (silencioso) {
@@ -398,7 +516,7 @@
     $('hrHasta').value = isoLocal(hoy);
 
     let buscarTimer = null;
-    const reRender = () => { state.visibles = PAGINA; render(); };
+    const reRender = () => { state.pagina = 1; render(); };
 
     $('btnHrActualizar').addEventListener('click', () => cargar(false));
     $('hrDesde').addEventListener('change', () => cargar(false));
@@ -413,8 +531,41 @@
       const campo = th.dataset.orden;
       if (state.orden.campo === campo) state.orden.dir = state.orden.dir === 'asc' ? 'desc' : 'asc';
       else state.orden = { campo, dir: campo === 'Trabajador' ? 'asc' : 'desc' };
-      render();
+      reRender();
     }));
+
+    // Paginacion
+    $('hrPagerPages').addEventListener('click', (e) => {
+      const btn = e.target.closest('.hr-page');
+      if (!btn || btn.disabled) return;
+      state.pagina = Number(btn.dataset.p) || 1;
+      render();
+      document.querySelector('.hr-tabsbar').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    $('hrPorPagina').addEventListener('change', (e) => {
+      state.porPagina = Number(e.target.value) || 10;
+      reRender();
+    });
+
+    // Abrir historial al hacer clic (o Enter) en una fila
+    const abrirDesdeFila = (e) => {
+      const fila = e.target.closest('tr.hr-clickable');
+      if (fila) abrirPanel(fila.dataset.dni);
+    };
+    ['hrTablaDetalle', 'hrTablaResumen'].forEach((id) => {
+      $(id).addEventListener('click', abrirDesdeFila);
+      $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') abrirDesdeFila(e); });
+    });
+
+    $('hrDrawerCerrar').addEventListener('click', cerrarPanel);
+    $('hrDrawerOverlay').addEventListener('click', cerrarPanel);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && state.panel.dni) cerrarPanel(); });
+    $('hrDrawerFiltros').addEventListener('click', (e) => {
+      const chip = e.target.closest('.hr-chip');
+      if (!chip) return;
+      state.panel.filtro = chip.dataset.f;
+      renderPanel();
+    });
 
     cargar(false);
     iniciarTiempoReal();
