@@ -108,6 +108,95 @@
   }
   const tieneExtra = (r) => minutosExtra(r) > 0;
 
+  // ---------- control de papeletas contra las marcas ----------
+  // Minutos fuera del permiso que se perdonan (0 = sin tolerancia).
+  const TOLERANCIA_PAPELETA = 0;
+  const hhmm = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
+  const fueraTol = (min) => (min > TOLERANCIA_PAPELETA ? min : 0);
+
+  function tramosPapeleta(r) {
+    return String(r.TramosPermiso || '').split(';').map((t) => {
+      const [a, b] = t.split('-');
+      return { s: aMinutos(a), r: aMinutos(b) };
+    }).filter((t) => t.s !== null);
+  }
+
+  // Devuelve cuanto se debe ese dia (tardanza, salida y permisos con retorno)
+  // y notas que explican como se cumplio cada papeleta.
+  function evaluarDia(r) {
+    const tarde = esTarde(r) ? num(r.MinutosTarde) : 0;
+    const antes = saleAntes(r) ? num(r.MinutosSalidaAntes) : 0;
+    const ev = { tarde: tarde, salida: antes, permiso: 0, justificado: 0, notas: [] };
+    if (!tienePapeleta(r) || esSinMarca(r)) return ev;
+
+    const E = aMinutos(r.HoraEntradaProgramada);
+    const S = aMinutos(r.HoraSalidaProgramada);
+    const P = aMinutos(r.PrimeraMarca || r.Marca1);
+    const U = num(r.CantidadMarcas) > 1 ? aMinutos(r.UltimaMarca) : null;
+    const marcas = [r.Marca1, r.Marca2, r.Marca3, r.Marca4, r.Marca5, r.Marca6, r.Marca7, r.Marca8]
+      .map(aMinutos).filter((m) => m !== null);
+    const intermedias = marcas.slice(1, U !== null ? -1 : undefined);
+
+    tramosPapeleta(r).forEach((t) => {
+      const desde = E !== null && t.s <= E;
+      const finTurno = t.r === null || (S !== null && t.r >= S);
+
+      if (desde && finTurno) { // permiso de todo el dia
+        ev.tarde = 0; ev.salida = 0;
+        ev.notas.push({ ok: true, txt: `Permiso de todo el día (${hhmm(t.s)} a fin de turno)` });
+      } else if (desde) { // permiso de entrada: puede llegar hasta t.r
+        if (tarde) {
+          ev.tarde = fueraTol(Math.max(0, P - Math.max(E, t.r)));
+          ev.notas.push(ev.tarde
+            ? { ok: false, txt: `Permiso hasta ${hhmm(t.r)}, pero entró ${hhmm(P)}: ${minutosTexto(ev.tarde)} después del permiso` }
+            : { ok: true, txt: `Tardanza cubierta (permiso hasta ${hhmm(t.r)}, entró ${hhmm(P)})` });
+        }
+      } else if (finTurno) { // permiso de salida hasta fin de turno
+        if (S !== null && t.s >= S) { // despues del turno: no cubre nada del horario
+          ev.notas.push({ ok: false, txt: `Papeleta desde ${hhmm(t.s)}: es después de su salida (${hhmm(S)}), no cubre su horario` });
+          return;
+        }
+        if (U === null) {
+          if (!esHoy(r)) ev.notas.push({ ok: false, txt: `Permiso desde ${hhmm(t.s)}, pero no marcó su salida` });
+          return;
+        }
+        if (U < t.s) {
+          ev.salida = fueraTol(t.s - U);
+          ev.notas.push(ev.salida
+            ? { ok: false, txt: `Permiso desde ${hhmm(t.s)}, pero salió ${hhmm(U)}: ${minutosTexto(ev.salida)} antes de lo autorizado` }
+            : { ok: true, txt: `Salió ${hhmm(U)} con permiso desde ${hhmm(t.s)}` });
+        } else {
+          ev.salida = 0;
+          ev.notas.push({ ok: true, txt: `Salió ${hhmm(U)} con permiso desde ${hhmm(t.s)}` });
+        }
+      } else { // permiso con salida y retorno en medio del turno
+        const candidatas = intermedias.filter((m) => m >= t.s - 60 && m <= t.r);
+        if (!candidatas.length) {
+          ev.notas.push({ ok: false, txt: `Permiso ${hhmm(t.s)} a ${hhmm(t.r)}: no marcó la salida ni el regreso` });
+          return;
+        }
+        const out = candidatas.reduce((a, b) => (Math.abs(b - t.s) < Math.abs(a - t.s) ? b : a));
+        const ret = marcas.find((m) => m > out);
+        const salioAntes = fueraTol(Math.max(0, t.s - out));
+        const volvioTarde = ret !== undefined ? fueraTol(Math.max(0, ret - t.r)) : 0;
+        ev.permiso += salioAntes + volvioTarde;
+        if (ret === undefined) {
+          ev.notas.push({ ok: false, txt: `Permiso ${hhmm(t.s)} a ${hhmm(t.r)}: salió ${hhmm(out)} y no marcó el regreso` });
+        } else if (salioAntes || volvioTarde) {
+          const partes = [];
+          if (salioAntes) partes.push(`salió ${minutosTexto(salioAntes)} antes`);
+          if (volvioTarde) partes.push(`regresó ${minutosTexto(volvioTarde)} tarde`);
+          ev.notas.push({ ok: false, txt: `Permiso ${hhmm(t.s)} a ${hhmm(t.r)}: marcó ${hhmm(out)} y ${hhmm(ret)} (${partes.join(', ')})` });
+        } else {
+          ev.notas.push({ ok: true, txt: `Permiso ${hhmm(t.s)} a ${hhmm(t.r)} cumplido (marcó ${hhmm(out)} y ${hhmm(ret)})` });
+        }
+      }
+    });
+
+    ev.justificado = Math.max(0, (tarde + antes) - (ev.tarde + ev.salida));
+    return ev;
+  }
+
   function balanceTexto(min) {
     if (min > 0) return { texto: `Se le debe ${minutosTexto(min)}`, detalle: 'la empresa le debe tiempo', tono: 'is-ok' };
     if (min < 0) return { texto: `Debe ${minutosTexto(-min)}`, detalle: 'debe tiempo a la empresa', tono: 'is-bad-main' };
@@ -277,12 +366,13 @@
       if (tarde) { s.diasTarde += 1; s.minTarde += tarde; }
       if (antes) { s.salidas += 1; s.minSalidas += antes; }
       // Con papeleta ese dia, la tardanza o la salida temprana estan justificadas: no se cobran.
-      if (tienePapeleta(r)) s.justificado += tarde + antes;
-      else {
-        s.debeTarde += tarde; s.debeSalidas += antes;
-        if (tarde) s.diasDebeTarde = (s.diasDebeTarde || 0) + 1;
-        if (antes) s.diasDebeSalida = (s.diasDebeSalida || 0) + 1;
-      }
+      // La papeleta solo justifica el rango que autoriza; lo que queda fuera se cobra.
+      const ev = evaluarDia(r);
+      s.justificado += ev.justificado;
+      s.debeTarde += ev.tarde;
+      s.debeSalidas += ev.salida + ev.permiso;
+      if (ev.tarde) s.diasDebeTarde = (s.diasDebeTarde || 0) + 1;
+      if (ev.salida + ev.permiso) s.diasDebeSalida = (s.diasDebeSalida || 0) + 1;
       const extra = minutosExtra(r);
       if (extra) { s.diasExtra += 1; s.minExtra += extra; }
       s.papeletas += num(r.CantidadPapeletas);
@@ -418,9 +508,22 @@
     const partes = [];
     if (esSinMarca(r)) partes.push('<span class="hr-txt-bad">No marcó</span>');
     else if (num(r.CantidadMarcas) < 2 && !esHoy(r)) partes.push('<span class="hr-txt-warn">No marcó salida</span>');
-    const just = tienePapeleta(r) ? ' <span class="hr-note">(justificado con papeleta)</span>' : '';
-    if (esTarde(r)) partes.push(`<span class="hr-txt-warn">Llegó ${minutosTexto(r.MinutosTarde)} tarde</span>${just}`);
-    if (saleAntes(r)) partes.push(`<span class="hr-txt-warn">Salió ${minutosTexto(r.MinutosSalidaAntes)} antes</span>${just}`);
+    const ev = evaluarDia(r);
+    if (!tienePapeleta(r)) {
+      if (esTarde(r)) partes.push(`<span class="hr-txt-warn">Llegó ${minutosTexto(r.MinutosTarde)} tarde</span>`);
+      if (saleAntes(r)) partes.push(`<span class="hr-txt-warn">Salió ${minutosTexto(r.MinutosSalidaAntes)} antes</span>`);
+    } else {
+      // Con papeleta: lo que no cubre el permiso se muestra aparte
+      if (ev.tarde && !ev.notas.some((n) => !n.ok && /entró/.test(n.txt))) {
+        partes.push(`<span class="hr-txt-warn">Llegó ${minutosTexto(ev.tarde)} tarde</span>`);
+      }
+      if (ev.salida && !ev.notas.some((n) => !n.ok && /salió .* antes de lo autorizado/.test(n.txt))) {
+        partes.push(`<span class="hr-txt-warn">Salió ${minutosTexto(ev.salida)} antes</span>`);
+      }
+      ev.notas.forEach((n) => partes.push(n.ok
+        ? `<span class="hr-txt-ok"><i class="fa-solid fa-check"></i> ${esc(n.txt)}</span>`
+        : `<span class="hr-txt-bad"><i class="fa-solid fa-triangle-exclamation"></i> ${esc(n.txt)}</span>`));
+    }
     const extra = minutosExtra(r);
     if (extra) partes.push(`<span class="hr-txt-ok">Se quedó ${minutosTexto(extra)} más (tiempo extra)</span>`);
     if (tienePapeleta(r)) {

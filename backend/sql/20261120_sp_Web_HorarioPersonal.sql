@@ -73,6 +73,10 @@ agg AS (
            MAX(CASE WHEN rn = 2 THEN CONVERT(char(5), FechaCompleta, 108) END) AS Marca2,
            MAX(CASE WHEN rn = 3 THEN CONVERT(char(5), FechaCompleta, 108) END) AS Marca3,
            MAX(CASE WHEN rn = 4 THEN CONVERT(char(5), FechaCompleta, 108) END) AS Marca4,
+           MAX(CASE WHEN rn = 5 THEN CONVERT(char(5), FechaCompleta, 108) END) AS Marca5,
+           MAX(CASE WHEN rn = 6 THEN CONVERT(char(5), FechaCompleta, 108) END) AS Marca6,
+           MAX(CASE WHEN rn = 7 THEN CONVERT(char(5), FechaCompleta, 108) END) AS Marca7,
+           MAX(CASE WHEN rn = 8 THEN CONVERT(char(5), FechaCompleta, 108) END) AS Marca8,
            MAX(CASE WHEN rn = 1 THEN Origen END) AS LugarEntrada,
            MAX(CASE WHEN rnd = 1 AND rn > 1 THEN Origen END) AS LugarSalida,
            SUM(CASE WHEN Origen = ''Manual'' THEN 1 ELSE 0 END) AS Manuales
@@ -99,7 +103,7 @@ SELECT
     g.Marca1 AS PrimeraMarca,
     CASE WHEN g.Cant > 1 THEN CONVERT(char(5), g.Ultima, 108) END AS UltimaMarca,
     ISNULL(g.Cant, 0) AS CantidadMarcas,
-    g.Marca1, g.Marca2, g.Marca3, g.Marca4,
+    g.Marca1, g.Marca2, g.Marca3, g.Marca4, g.Marca5, g.Marca6, g.Marca7, g.Marca8,
     g.LugarEntrada, g.LugarSalida,
     ISNULL(g.Manuales, 0) AS MarcasManuales,
     CASE WHEN g.Primera IS NOT NULL AND r.EntradaInHour IS NOT NULL
@@ -123,6 +127,7 @@ LEFT JOIN agg g ON g.UsuarioId = d.UsuarioId AND g.Fecha = d.Fecha';
         Fecha datetime, Turno varchar(100), HoraEntradaProgramada char(5), HoraSalidaProgramada char(5),
         PrimeraMarca char(5), UltimaMarca char(5), CantidadMarcas int,
         Marca1 char(5), Marca2 char(5), Marca3 char(5), Marca4 char(5),
+        Marca5 char(5), Marca6 char(5), Marca7 char(5), Marca8 char(5),
         LugarEntrada varchar(10), LugarSalida varchar(10), MarcasManuales int,
         MinutosTarde int, MinutosSalidaAntes int, HorasEntreMarcas decimal(5,2),
         SinMarcas varchar(2), Feriado varchar(2)
@@ -156,7 +161,12 @@ LEFT JOIN agg g ON g.UsuarioId = d.UsuarioId AND g.Fecha = d.Fecha';
                       FOR XML PATH(''), TYPE).value('.', 'varchar(300)'), 1, 3, '') AS Tipos,
                STUFF((SELECT ' / ' + CASE WHEN x.Motivo = '' THEN '-' ELSE x.Motivo END
                       FROM papBase x WHERE x.DNI = b.DNI AND x.Fecha = b.Fecha ORDER BY x.s, x.Num
-                      FOR XML PATH(''), TYPE).value('.', 'nvarchar(1000)'), 1, 3, '') AS Motivos
+                      FOR XML PATH(''), TYPE).value('.', 'nvarchar(1000)'), 1, 3, '') AS Motivos,
+               -- Tramos autorizados "HH:MM-HH:MM;HH:MM-" (sin hora de retorno = hasta fin de turno)
+               STUFF((SELECT ';' + CONVERT(char(5), x.s, 108) + '-' +
+                             CASE WHEN x.r > x.s THEN CONVERT(char(5), x.r, 108) ELSE '' END
+                      FROM papBase x WHERE x.DNI = b.DNI AND x.Fecha = b.Fecha AND x.s IS NOT NULL ORDER BY x.s, x.Num
+                      FOR XML PATH(''), TYPE).value('.', 'varchar(300)'), 1, 1, '') AS Tramos
         FROM papBase b
         GROUP BY b.DNI, b.Fecha
     )
@@ -167,7 +177,7 @@ LEFT JOIN agg g ON g.UsuarioId = d.UsuarioId AND g.Fecha = d.Fecha';
         CONVERT(char(10), a.Fecha, 23) AS Fecha,
         a.Turno, a.HoraEntradaProgramada, a.HoraSalidaProgramada,
         a.PrimeraMarca, a.UltimaMarca,
-        a.Marca1, a.Marca2, a.Marca3, a.Marca4, a.CantidadMarcas,
+        a.Marca1, a.Marca2, a.Marca3, a.Marca4, a.Marca5, a.Marca6, a.Marca7, a.Marca8, a.CantidadMarcas,
         a.LugarEntrada, a.LugarSalida, a.MarcasManuales,
         a.MinutosTarde, a.MinutosSalidaAntes, a.HorasEntreMarcas,
         a.SinMarcas, a.Feriado,
@@ -176,6 +186,7 @@ LEFT JOIN agg g ON g.UsuarioId = d.UsuarioId AND g.Fecha = d.Fecha';
         pd.Tipos AS TipoPermiso,
         pd.Horario AS HorarioPermiso,
         pd.Motivos AS MotivoPermiso,
+        pd.Tramos AS TramosPermiso,
         CAST((ISNULL(pd.MinConRetorno, 0) +
               CASE WHEN pd.SalidaSinRetorno IS NOT NULL AND a.HoraSalidaProgramada IS NOT NULL
                         AND CAST(a.HoraSalidaProgramada AS time) >
