@@ -83,48 +83,74 @@
 
   const VACIO = '<span class="hr-none">—</span>';
   const esHoy = (r) => r.Fecha === isoLocal(new Date());
+  const CONECTORES = new Set(['de', 'del', 'la', 'las', 'los', 'y', 'e', 'en', 'a', 'al', 'para', 'por', 'con']);
+
+  // "AUXILIAR DE DESARROLLO DE PRODUCTOS" -> "Auxiliar de Desarrollo de Productos"
+  function tipoTitulo(texto) {
+    return String(texto || '').toLowerCase().split(/\s+/).filter(Boolean)
+      .map((p, i) => (i > 0 && CONECTORES.has(p)) ? p : p.charAt(0).toUpperCase() + p.slice(1))
+      .join(' ');
+  }
+
+  // "CITA MEDICA" -> "Cita medica"
+  function tipoOracion(texto) {
+    const t = String(texto || '').trim().toLowerCase();
+    return t ? t.charAt(0).toUpperCase() + t.slice(1) : '';
+  }
+
+  function celdaTrabajador(nombre, sub) {
+    return `
+      <div class="hr-worker">
+        <span class="hr-avatar" aria-hidden="true"><i class="fa-solid fa-user"></i></span>
+        <div class="hr-worker__txt">
+          <div class="hr-name">${esc(nombre)}</div>
+          <div class="hr-sub">${sub}</div>
+        </div>
+      </div>`;
+  }
+
+  function pill(texto, tipo) {
+    return `<span class="hr-pill hr-pill--${tipo}"><span class="hr-dot"></span>${texto}</span>`;
+  }
 
   // ---------- detalle por dia ----------
   function celdaEstado(r) {
-    if (esSinMarca(r)) return '<span class="hr-tag hr-tag--bad"><i class="fa-solid fa-circle"></i> Sin marcas</span>';
-    if (num(r.CantidadMarcas) < 2) {
-      return esHoy(r)
-        ? '<span class="hr-tag hr-tag--ok"><i class="fa-solid fa-circle"></i> En turno</span>'
-        : '<span class="hr-tag hr-tag--warn"><i class="fa-solid fa-circle"></i> Sin salida</span>';
-    }
-    if (saleAntes(r)) return '<span class="hr-tag hr-tag--bad"><i class="fa-solid fa-circle"></i> Salió antes</span>';
-    return '<span class="hr-tag hr-tag--ok"><i class="fa-solid fa-circle"></i> Asistió</span>';
+    if (esSinMarca(r)) return pill('Sin marcas', 'bad');
+    if (num(r.CantidadMarcas) < 2) return esHoy(r) ? pill('En turno', 'ok') : pill('Sin salida', 'warn');
+    if (saleAntes(r)) return pill('Salió antes', 'warn');
+    return pill('Asistió', 'ok');
+  }
+
+  function marcasTitulo(r) {
+    const marcas = [r.Marca1, r.Marca2, r.Marca3, r.Marca4].map(hora).filter(Boolean);
+    let t = `Marcas: ${marcas.join(', ')}${num(r.CantidadMarcas) > 4 ? '…' : ''}`;
+    if (num(r.MarcasManuales) > 0) t += ' (incluye marcas manuales)';
+    return esc(t);
   }
 
   function celdaEntrada(r) {
     if (esSinMarca(r)) return VACIO;
-    const t = hora(r.PrimeraMarca || r.Marca1);
     const clase = esTarde(r) ? 'late' : (hora(r.HoraEntradaProgramada) ? 'ok' : '');
-    const lugar = r.LugarEntrada ? `<div class="hr-sub">${esc(r.LugarEntrada)}</div>` : '';
-    return `<span class="hr-time ${clase}">${esc(t)}</span>${lugar}`;
+    return `<span class="hr-time ${clase}" title="${marcasTitulo(r)}">${esc(hora(r.PrimeraMarca || r.Marca1))}</span>`;
   }
 
   function celdaSalida(r) {
     if (esSinMarca(r) || num(r.CantidadMarcas) < 2) return VACIO;
-    const t = hora(r.UltimaMarca);
-    const clase = saleAntes(r) ? 'early' : (hora(r.HoraSalidaProgramada) ? 'ok' : '');
-    const marcas = [r.Marca1, r.Marca2, r.Marca3, r.Marca4].map(hora).filter(Boolean);
-    const extra = num(r.CantidadMarcas) > 2
-      ? `<div class="hr-sub" title="Marcas: ${esc(marcas.join(', '))}${num(r.CantidadMarcas) > 4 ? '…' : ''}">${num(r.CantidadMarcas)} marcas</div>`
-      : '';
-    const antes = saleAntes(r) ? `<div class="hr-sub">${minutosTexto(r.MinutosSalidaAntes)} antes</div>` : '';
-    return `<span class="hr-time ${clase}">${esc(t)}</span>${antes || extra}`;
+    const clase = saleAntes(r) ? 'late' : '';
+    return `<span class="hr-time ${clase}" title="${marcasTitulo(r)}">${esc(hora(r.UltimaMarca))}</span>`;
   }
 
   function celdaPermiso(r) {
     if (!tienePapeleta(r)) return VACIO;
-    const tipo = r.TipoPermiso ? `<span class="hr-tag hr-tag--pap">${esc(r.TipoPermiso)}</span>` : '';
-    const motivo = r.MotivoPermiso ? `<div class="hr-perm__motivo" title="${esc(r.MotivoPermiso)}">${esc(r.MotivoPermiso)}</div>` : '';
+    const tipo = r.TipoPermiso ? ` · ${esc(r.TipoPermiso)}` : '';
+    const detalle = [r.HorarioPermiso, tipoOracion(r.MotivoPermiso)].filter(Boolean).map(esc).join(' · ');
     return `
-      <div class="hr-perm">
-        <div class="hr-perm__head">N° ${esc(r.NumeroPapeleta)} ${tipo}</div>
-        <div class="hr-perm__time">${esc(r.HorarioPermiso)}</div>
-        ${motivo}
+      <div class="hr-perm" title="${esc(r.MotivoPermiso || '')}">
+        <i class="fa-regular fa-file-lines" aria-hidden="true"></i>
+        <div>
+          <div class="hr-perm__head">N° ${esc(r.NumeroPapeleta)}${tipo}</div>
+          <div class="hr-sub">${detalle}</div>
+        </div>
       </div>`;
   }
 
@@ -132,26 +158,21 @@
     const entrada = hora(r.HoraEntradaProgramada);
     const salida = hora(r.HoraSalidaProgramada);
     const horario = entrada || salida
-      ? `<span class="hr-time">${esc(entrada || '—')} – ${esc(salida || '—')}</span>`
-      : '<span class="hr-none">Sin horario</span>';
-    const feriado = r.Feriado === 'SI' ? ' <span class="hr-tag">Feriado</span>' : '';
-    const manual = num(r.MarcasManuales) > 0 ? ' <span class="hr-tag hr-tag--manual" title="Incluye marcas registradas a mano">Manual</span>' : '';
-    const estado = esSinMarca(r) ? 'is-sin' : esTarde(r) ? 'is-tarde' : tienePapeleta(r) ? 'is-pap' : '';
-    const tarde = esTarde(r) ? `<span class="hr-tag hr-tag--warn">${minutosTexto(r.MinutosTarde)}</span>` : VACIO;
+      ? `<span class="hr-strong">${esc(entrada || '—')} – ${esc(salida || '—')}</span>`
+      : VACIO;
+    const feriado = r.Feriado === 'SI' ? '<div class="hr-sub">Feriado</div>' : '';
+    const tarde = esTarde(r) ? `<span class="hr-pill hr-pill--warn">${minutosTexto(r.MinutosTarde)}</span>` : VACIO;
 
     return `
-      <tr class="hr-row ${estado}">
-        <td data-label="Trabajador">
-          <div class="hr-name">${esc(r.Trabajador)}${manual}</div>
-          <div class="hr-sub">${esc(r.DNI)} · ${esc(r.Cargo)}</div>
-        </td>
-        <td data-label="Horario">${horario}${feriado}</td>
-        <td data-label="Entrada">${celdaEntrada(r)}</td>
-        <td data-label="Salida">${celdaSalida(r)}</td>
+      <tr class="hr-row">
+        <td data-label="Trabajador">${celdaTrabajador(r.Trabajador, `${esc(r.DNI)} · ${esc(tipoTitulo(r.Cargo))}`)}</td>
+        <td data-label="Horario" class="center">${horario}${feriado}</td>
+        <td data-label="Entrada" class="center">${celdaEntrada(r)}</td>
+        <td data-label="Salida" class="center">${celdaSalida(r)}</td>
         <td data-label="Estado">${celdaEstado(r)}</td>
-        <td data-label="Tardanza">${tarde}</td>
+        <td data-label="Tardanza" class="center">${tarde}</td>
         <td data-label="Papeleta">${celdaPermiso(r)}</td>
-        <td data-label="Horas" class="num">${tienePapeleta(r) ? numero(r.HorasPermiso, 2) : VACIO}</td>
+        <td data-label="Horas" class="num">${tienePapeleta(r) ? `<span class="hr-strong">${numero(r.HorasPermiso, 2)}</span>` : VACIO}</td>
       </tr>`;
   }
 
@@ -172,13 +193,10 @@
     let pintadas = 0;
     for (const [fecha, lista] of porDia) {
       if (pintadas >= state.visibles) break;
-      const tardes = lista.filter(esTarde).length;
-      const sin = lista.filter(esSinMarca).length;
-      const pap = lista.reduce((t, r) => t + num(r.CantidadPapeletas), 0);
       html += `
         <tr class="hr-day"><td colspan="8">
           <span class="hr-day__date">${fechaLarga(fecha)}</span>
-          <span class="hr-day__meta"><b>${lista.length}</b> trabajadores · <b>${tardes}</b> tardanzas · <b>${sin}</b> sin marcas · <b>${pap}</b> papeletas</span>
+          <span class="hr-day__meta">· ${lista.length} trabajadores</span>
         </td></tr>`;
       for (const r of lista) {
         if (pintadas >= state.visibles) break;
@@ -222,8 +240,8 @@
     return lista;
   }
 
-  function celdaNum(valor, texto) {
-    return valor ? `<td class="num">${texto ?? numero(valor)}</td>` : '<td class="num hr-zero">0</td>';
+  function celdaNum(label, valor, texto) {
+    return `<td data-label="${label}" class="center">${valor ? `<span class="hr-strong">${texto ?? numero(valor)}</span>` : VACIO}</td>`;
   }
 
   function renderResumen(rows) {
@@ -238,24 +256,20 @@
       return;
     }
     tbody.innerHTML = resumen.map((s) => {
-      const pct = Math.round(s.asistencia * 100);
+      const total = s.conMarca + s.sinMarca;
+      const sinMarca = s.sinMarca ? ` <span class="hr-sub">(${s.sinMarca} sin marca)</span>` : '';
+      const tarde = s.diasTarde
+        ? `<span class="hr-pill hr-pill--warn">${numero(s.diasTarde)} ${s.diasTarde === 1 ? 'día' : 'días'}</span>`
+        : VACIO;
       return `
-        <tr class="hr-row ${s.sinMarca ? '' : ''}">
-          <td data-label="Trabajador">
-            <div class="hr-name">${esc(s.Trabajador)}</div>
-            <div class="hr-sub">${esc(s.DNI)} · ${esc(s.Area)}</div>
-          </td>
-          <td data-label="Asistencia">
-            <div class="hr-bar" title="${s.conMarca} días con marca, ${s.sinMarca} sin marca">
-              <div class="hr-bar__track"><div class="hr-bar__fill" style="width:${pct}%"></div></div>
-              <span class="hr-bar__txt">${s.conMarca}/${s.conMarca + s.sinMarca} días</span>
-            </div>
-          </td>
-          ${celdaNum(s.diasTarde, `${numero(s.diasTarde)} ${s.diasTarde === 1 ? 'día' : 'días'}`).replace('<td', '<td data-label="Tardanzas"')}
-          ${celdaNum(s.minTarde, minutosTexto(s.minTarde)).replace('<td', '<td data-label="Tiempo tarde"')}
-          ${celdaNum(s.salidas).replace('<td', '<td data-label="Salidas antes"')}
-          ${celdaNum(s.papeletas).replace('<td', '<td data-label="Papeletas"')}
-          ${celdaNum(s.horas, numero(s.horas, 2)).replace('<td', '<td data-label="Horas permiso"')}
+        <tr class="hr-row">
+          <td data-label="Trabajador">${celdaTrabajador(s.Trabajador, `${esc(s.DNI)} · ${esc(tipoTitulo(s.Cargo))}`)}</td>
+          <td data-label="Asistencia" class="center"><span class="hr-strong">${s.conMarca} de ${total}</span>${sinMarca}</td>
+          <td data-label="Tardanzas" class="center">${tarde}</td>
+          ${celdaNum('Tiempo tarde', s.minTarde, minutosTexto(s.minTarde))}
+          ${celdaNum('Salidas antes', s.salidas)}
+          ${celdaNum('Papeletas', s.papeletas)}
+          ${celdaNum('Horas permiso', s.horas, numero(s.horas, 2))}
         </tr>`;
     }).join('');
   }
