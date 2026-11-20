@@ -404,23 +404,44 @@ body.dark .hr-drawer {
   .hr-col-action { display: none !important; }
 }
 
-/* ---------- Saldo de horas (consolidado) ---------- */
-.hr-saldo {
-  padding: 16px 18px;
+/* ---------- Saldo de horas: a favor - en contra = saldo ---------- */
+.hr-cuenta {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto minmax(0, 1.15fr);
+  align-items: stretch;
+  gap: 10px;
+}
+.hr-cuenta__box {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 14px 16px;
   border: 1px solid var(--hr-line);
   border-radius: 12px;
-  background: var(--hr-head);
+  background: var(--hr-card);
 }
-.hr-saldo__label { color: var(--hr-muted); font-size: .8rem; font-weight: 600; }
-.hr-saldo__main { margin-top: 2px; font-size: 1.6rem; font-weight: 800; color: var(--hr-text); line-height: 1.2; }
-.hr-saldo__sub { color: var(--hr-muted); font-size: .88rem; margin-bottom: 10px; }
-.hr-saldo.is-ok .hr-saldo__main { color: var(--hr-ok); }
-.hr-saldo.is-bad-main .hr-saldo__main { color: var(--hr-bad); }
-.hr-calc {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
-  padding-top: 10px; margin-bottom: 6px;
-  border-top: 1px solid var(--hr-line);
-  font-size: .88rem; color: var(--hr-text-2);
+.hr-cuenta__label { color: var(--hr-muted); font-size: .8rem; font-weight: 600; }
+.hr-cuenta__num { font-size: 1.35rem; font-weight: 800; color: var(--hr-text); line-height: 1.2; font-variant-numeric: tabular-nums; }
+.hr-cuenta__num.is-ok { color: var(--hr-ok); }
+.hr-cuenta__num.is-bad { color: var(--hr-bad); }
+.hr-cuenta__det { color: var(--hr-muted); font-size: .8rem; line-height: 1.4; }
+.hr-cuenta__op {
+  align-self: center;
+  color: var(--hr-faint);
+  font-size: 1.4rem; font-weight: 300;
 }
-.hr-calc__item b { font-weight: 700; margin-left: 4px; }
-.hr-calc__op { color: var(--hr-faint); }
+.hr-cuenta__box--saldo.is-ok { background: var(--hr-ok-bg); border-color: transparent; }
+.hr-cuenta__box--saldo.is-ok .hr-cuenta__label,
+.hr-cuenta__box--saldo.is-ok .hr-cuenta__num { color: var(--hr-ok); }
+.hr-cuenta__box--saldo.is-bad { background: var(--hr-bad-bg); border-color: transparent; }
+.hr-cuenta__box--saldo.is-bad .hr-cuenta__label,
+.hr-cuenta__box--saldo.is-bad .hr-cuenta__num { color: var(--hr-bad); }
+.hr-cuenta__box--saldo.is-neutral { background: var(--hr-head); }
+.hr-cuenta__box--saldo .hr-cuenta__label { font-weight: 700; }
+.hr-cuenta__nota,
+.hr-cuenta__pie { margin: 10px 2px 0; color: var(--hr-muted); font-size: .82rem; }
+.hr-cuenta__nota i { margin-right: 4px; }
+.hr-cuenta__pie { margin-top: 6px; }
+
+@media (max-width: 760px) {
+  .hr-cuenta { grid-template-columns: 1fr; }
+  .hr-cuenta__op { display: none; }
+}

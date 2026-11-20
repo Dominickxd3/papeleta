@@ -278,7 +278,11 @@
       if (antes) { s.salidas += 1; s.minSalidas += antes; }
       // Con papeleta ese dia, la tardanza o la salida temprana estan justificadas: no se cobran.
       if (tienePapeleta(r)) s.justificado += tarde + antes;
-      else { s.debeTarde += tarde; s.debeSalidas += antes; }
+      else {
+        s.debeTarde += tarde; s.debeSalidas += antes;
+        if (tarde) s.diasDebeTarde = (s.diasDebeTarde || 0) + 1;
+        if (antes) s.diasDebeSalida = (s.diasDebeSalida || 0) + 1;
+      }
       const extra = minutosExtra(r);
       if (extra) { s.diasExtra += 1; s.minExtra += extra; }
       s.papeletas += num(r.CantidadPapeletas);
@@ -362,25 +366,51 @@
 
   // Un solo recuadro: quien debe a quien y como se llego a ese numero.
   function consolidadoHtml(s) {
-    const bt = balanceTexto(s.balance);
-    const linea = [
-      `<span class="hr-calc__item">Tiempo extra <b class="hr-txt-ok">+${minutosTexto(s.minExtra)}</b></span>`,
-      `<span class="hr-calc__item">Tardanzas <b class="${s.debeTarde ? 'hr-txt-bad' : ''}">−${minutosTexto(s.debeTarde)}</b></span>`,
-      `<span class="hr-calc__item">Salidas antes <b class="${s.debeSalidas ? 'hr-txt-bad' : ''}">−${minutosTexto(s.debeSalidas)}</b></span>`
-    ].join('<span class="hr-calc__op">·</span>');
-    const justificado = s.justificado
-      ? `<div class="hr-sub">No se cobran ${minutosTexto(s.justificado)} de tardanzas o salidas porque tenía papeleta ese día.</div>`
-      : '';
+    const enContra = s.debeTarde + s.debeSalidas;
     const total = s.conMarca + s.sinMarca;
+
+    const detContra = [];
+    if (s.debeTarde) detContra.push(`Tardanzas ${minutosTexto(s.debeTarde)} (${plural(s.diasDebeTarde || 0, 'día', 'días')})`);
+    if (s.debeSalidas) detContra.push(`Salidas antes ${minutosTexto(s.debeSalidas)} (${plural(s.diasDebeSalida || 0, 'día', 'días')})`);
+
+    let saldoTitulo; let saldoValor; let saldoTexto; let tono;
+    if (s.balance > 0) {
+      tono = 'ok'; saldoTitulo = 'Se le debe'; saldoValor = minutosTexto(s.balance);
+      saldoTexto = 'Trabajó más de lo que debe. La empresa le debe este tiempo.';
+    } else if (s.balance < 0) {
+      tono = 'bad'; saldoTitulo = 'Le falta'; saldoValor = minutosTexto(-s.balance);
+      saldoTexto = 'Sus tardanzas o salidas superan su tiempo extra. Debe este tiempo.';
+    } else {
+      tono = 'neutral'; saldoTitulo = 'Saldo'; saldoValor = '0 min';
+      saldoTexto = 'Lo que debía quedó cubierto con su tiempo extra.';
+    }
+
+    const justificado = s.justificado
+      ? `<p class="hr-cuenta__nota"><i class="fa-regular fa-file-lines"></i> No se descuentan ${minutosTexto(s.justificado)} porque tenía papeleta esos días.</p>`
+      : '';
+
     return `
-      <div class="hr-saldo ${bt.tono}">
-        <div class="hr-saldo__label">Saldo de horas del periodo</div>
-        <div class="hr-saldo__main">${bt.texto}</div>
-        <div class="hr-saldo__sub">${bt.detalle}</div>
-        <div class="hr-calc">${linea}</div>
-        ${justificado}
-        <div class="hr-sub">Asistencia: ${numero(s.conMarca)} de ${plural(total, 'día', 'días')}${s.sinMarca ? ` (${plural(s.sinMarca, 'día', 'días')} sin marcar)` : ''} · ${s.papeletas ? `${plural(s.papeletas, 'papeleta', 'papeletas')} (${numero(s.horas, 2)} h)` : 'sin papeletas'}</div>
-      </div>`;
+      <div class="hr-cuenta">
+        <div class="hr-cuenta__box">
+          <span class="hr-cuenta__label">Tiempo a favor</span>
+          <strong class="hr-cuenta__num is-ok">${minutosTexto(s.minExtra)}</strong>
+          <span class="hr-cuenta__det">${s.diasExtra ? `Se quedó después de hora ${plural(s.diasExtra, 'día', 'días')}` : 'No tuvo tiempo extra'}</span>
+        </div>
+        <span class="hr-cuenta__op" aria-hidden="true">−</span>
+        <div class="hr-cuenta__box">
+          <span class="hr-cuenta__label">Tiempo en contra</span>
+          <strong class="hr-cuenta__num ${enContra ? 'is-bad' : ''}">${minutosTexto(enContra)}</strong>
+          <span class="hr-cuenta__det">${detContra.length ? detContra.join(' · ') : 'Sin tardanzas ni salidas antes'}</span>
+        </div>
+        <span class="hr-cuenta__op" aria-hidden="true">=</span>
+        <div class="hr-cuenta__box hr-cuenta__box--saldo is-${tono}">
+          <span class="hr-cuenta__label">${saldoTitulo}</span>
+          <strong class="hr-cuenta__num">${saldoValor}</strong>
+          <span class="hr-cuenta__det">${saldoTexto}</span>
+        </div>
+      </div>
+      ${justificado}
+      <p class="hr-cuenta__pie">Asistencia ${numero(s.conMarca)} de ${plural(total, 'día', 'días')}${s.sinMarca ? ` · ${plural(s.sinMarca, 'día', 'días')} sin marcar` : ''} · ${s.papeletas ? `${plural(s.papeletas, 'papeleta', 'papeletas')} (${numero(s.horas, 2)} h)` : 'Sin papeletas'}</p>`;
   }
 
   // ---------- historial de un trabajador (panel lateral) ----------
