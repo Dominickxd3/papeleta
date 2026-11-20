@@ -109,9 +109,9 @@
   const tieneExtra = (r) => minutosExtra(r) > 0;
 
   function balanceTexto(min) {
-    if (min > 0) return { texto: `+${minutosTexto(min)}`, detalle: 'a favor del trabajador', tono: 'is-ok' };
-    if (min < 0) return { texto: `−${minutosTexto(-min)}`, detalle: 'en contra (debe tiempo)', tono: 'is-bad-main' };
-    return { texto: '0 min', detalle: 'sin saldo', tono: '' };
+    if (min > 0) return { texto: `Se le debe ${minutosTexto(min)}`, detalle: 'la empresa le debe tiempo', tono: 'is-ok' };
+    if (min < 0) return { texto: `Debe ${minutosTexto(-min)}`, detalle: 'debe tiempo a la empresa', tono: 'is-bad-main' };
+    return { texto: 'Sin saldo', detalle: 'no debe ni se le debe', tono: '' };
   }
 
   function filasFiltradas() {
@@ -266,13 +266,19 @@
         map.set(r.DNI, {
           Trabajador: r.Trabajador, DNI: r.DNI, Cargo: r.Cargo,
           conMarca: 0, sinMarca: 0, diasTarde: 0, minTarde: 0, salidas: 0, minSalidas: 0,
-          diasExtra: 0, minExtra: 0, papeletas: 0, horas: 0
+          diasExtra: 0, minExtra: 0, papeletas: 0, horas: 0,
+          debeTarde: 0, debeSalidas: 0, justificado: 0
         });
       }
       const s = map.get(r.DNI);
       if (esSinMarca(r)) s.sinMarca += 1; else s.conMarca += 1;
-      if (esTarde(r)) { s.diasTarde += 1; s.minTarde += num(r.MinutosTarde); }
-      if (saleAntes(r)) { s.salidas += 1; s.minSalidas += num(r.MinutosSalidaAntes); }
+      const tarde = esTarde(r) ? num(r.MinutosTarde) : 0;
+      const antes = saleAntes(r) ? num(r.MinutosSalidaAntes) : 0;
+      if (tarde) { s.diasTarde += 1; s.minTarde += tarde; }
+      if (antes) { s.salidas += 1; s.minSalidas += antes; }
+      // Con papeleta ese dia, la tardanza o la salida temprana estan justificadas: no se cobran.
+      if (tienePapeleta(r)) s.justificado += tarde + antes;
+      else { s.debeTarde += tarde; s.debeSalidas += antes; }
       const extra = minutosExtra(r);
       if (extra) { s.diasExtra += 1; s.minExtra += extra; }
       s.papeletas += num(r.CantidadPapeletas);
@@ -281,7 +287,8 @@
     const lista = [...map.values()];
     lista.forEach((s) => {
       s.asistencia = s.conMarca / Math.max(1, s.conMarca + s.sinMarca);
-      s.balance = s.minExtra - s.minTarde - s.minSalidas;
+      // Saldo final: positivo = la empresa le debe; negativo = el trabajador debe.
+      s.balance = s.minExtra - s.debeTarde - s.debeSalidas;
     });
 
     const { campo, dir } = state.orden;
@@ -307,7 +314,7 @@
     });
     if (!resumen.length) {
       $('hrPager').hidden = true;
-      tbody.innerHTML = '<tr><td colspan="8" class="hr-empty"><i class="fa-regular fa-user"></i>No hay registros para este filtro.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="hr-empty"><i class="fa-regular fa-user"></i>No hay registros para este filtro.</td></tr>';
       return;
     }
     tbody.innerHTML = paginar(resumen).map((s) => {
@@ -318,8 +325,7 @@
           <td data-label="Asistencia">${b.asistencia}</td>
           <td data-label="Tardanzas">${b.tardanzas}</td>
           <td data-label="Salidas antes de hora">${b.salidas}</td>
-          <td data-label="Tiempo extra">${b.extra}</td>
-          <td data-label="Balance de horas">${b.balance}</td>
+          <td data-label="Saldo de horas">${b.balance}</td>
           <td data-label="Papeletas">${b.papeletas}</td>
           <td class="hr-col-action"><span class="hr-link">Ver detalle <i class="fa-solid fa-chevron-right"></i></span></td>
         </tr>`;
@@ -354,13 +360,37 @@
     };
   }
 
+  // Un solo recuadro: quien debe a quien y como se llego a ese numero.
+  function consolidadoHtml(s) {
+    const bt = balanceTexto(s.balance);
+    const linea = [
+      `<span class="hr-calc__item">Tiempo extra <b class="hr-txt-ok">+${minutosTexto(s.minExtra)}</b></span>`,
+      `<span class="hr-calc__item">Tardanzas <b class="${s.debeTarde ? 'hr-txt-bad' : ''}">−${minutosTexto(s.debeTarde)}</b></span>`,
+      `<span class="hr-calc__item">Salidas antes <b class="${s.debeSalidas ? 'hr-txt-bad' : ''}">−${minutosTexto(s.debeSalidas)}</b></span>`
+    ].join('<span class="hr-calc__op">·</span>');
+    const justificado = s.justificado
+      ? `<div class="hr-sub">No se cobran ${minutosTexto(s.justificado)} de tardanzas o salidas porque tenía papeleta ese día.</div>`
+      : '';
+    const total = s.conMarca + s.sinMarca;
+    return `
+      <div class="hr-saldo ${bt.tono}">
+        <div class="hr-saldo__label">Saldo de horas del periodo</div>
+        <div class="hr-saldo__main">${bt.texto}</div>
+        <div class="hr-saldo__sub">${bt.detalle}</div>
+        <div class="hr-calc">${linea}</div>
+        ${justificado}
+        <div class="hr-sub">Asistencia: ${numero(s.conMarca)} de ${plural(total, 'día', 'días')}${s.sinMarca ? ` (${plural(s.sinMarca, 'día', 'días')} sin marcar)` : ''} · ${s.papeletas ? `${plural(s.papeletas, 'papeleta', 'papeletas')} (${numero(s.horas, 2)} h)` : 'sin papeletas'}</div>
+      </div>`;
+  }
+
   // ---------- historial de un trabajador (panel lateral) ----------
   function detalleDia(r) {
     const partes = [];
     if (esSinMarca(r)) partes.push('<span class="hr-txt-bad">No marcó</span>');
     else if (num(r.CantidadMarcas) < 2 && !esHoy(r)) partes.push('<span class="hr-txt-warn">No marcó salida</span>');
-    if (esTarde(r)) partes.push(`<span class="hr-txt-warn">Llegó ${minutosTexto(r.MinutosTarde)} tarde</span>`);
-    if (saleAntes(r)) partes.push(`<span class="hr-txt-warn">Salió ${minutosTexto(r.MinutosSalidaAntes)} antes</span>`);
+    const just = tienePapeleta(r) ? ' <span class="hr-note">(justificado con papeleta)</span>' : '';
+    if (esTarde(r)) partes.push(`<span class="hr-txt-warn">Llegó ${minutosTexto(r.MinutosTarde)} tarde</span>${just}`);
+    if (saleAntes(r)) partes.push(`<span class="hr-txt-warn">Salió ${minutosTexto(r.MinutosSalidaAntes)} antes</span>${just}`);
     const extra = minutosExtra(r);
     if (extra) partes.push(`<span class="hr-txt-ok">Se quedó ${minutosTexto(extra)} más (tiempo extra)</span>`);
     if (tienePapeleta(r)) {
@@ -385,13 +415,7 @@
     const d = fechaPartes($('hrDesde').value);
     const h = fechaPartes($('hrHasta').value);
     $('hrDrawerPeriodo').textContent = `Periodo del ${d.corta} al ${h.corta}`;
-    $('hrDrawerStats').innerHTML = `
-      <div class="hr-mini"><span>Asistencia</span>${b.asistencia}</div>
-      <div class="hr-mini"><span>Tardanzas</span>${b.tardanzas}</div>
-      <div class="hr-mini"><span>Salidas antes</span>${b.salidas}</div>
-      <div class="hr-mini"><span>Tiempo extra</span>${b.extra}</div>
-      <div class="hr-mini"><span>Balance de horas</span>${b.balance}</div>
-      <div class="hr-mini"><span>Papeletas</span>${b.papeletas}</div>`;
+    $('hrDrawerStats').innerHTML = consolidadoHtml(s);
 
     const f = state.panel.filtro;
     const cuenta = {
@@ -462,7 +486,7 @@
 
   function mostrarMensaje(html) {
     const tabla = state.vista === 'detalle' ? $('hrTablaDetalle') : $('hrTablaResumen');
-    const cols = 8;
+    const cols = state.vista === 'detalle' ? 8 : 7;
     tabla.querySelector('tbody').innerHTML = `<tr><td colspan="${cols}" class="hr-empty">${html}</td></tr>`;
   }
 

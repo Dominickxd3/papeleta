@@ -334,7 +334,7 @@ body.dark .hr-drawer {
 .hr-icon-btn:hover { color: var(--hr-text); border-color: var(--hr-faint); }
 .hr-drawer__periodo { margin: 0; padding: 0 24px 14px 80px; color: var(--hr-muted); font-size: .85rem; }
 .hr-drawer__stats {
-  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;
+  display: block;
   padding: 0 24px 16px;
 }
 .hr-mini {
@@ -403,3 +403,24 @@ body.dark .hr-drawer {
   .hr-pager { justify-content: center; }
   .hr-col-action { display: none !important; }
 }
+
+/* ---------- Saldo de horas (consolidado) ---------- */
+.hr-saldo {
+  padding: 16px 18px;
+  border: 1px solid var(--hr-line);
+  border-radius: 12px;
+  background: var(--hr-head);
+}
+.hr-saldo__label { color: var(--hr-muted); font-size: .8rem; font-weight: 600; }
+.hr-saldo__main { margin-top: 2px; font-size: 1.6rem; font-weight: 800; color: var(--hr-text); line-height: 1.2; }
+.hr-saldo__sub { color: var(--hr-muted); font-size: .88rem; margin-bottom: 10px; }
+.hr-saldo.is-ok .hr-saldo__main { color: var(--hr-ok); }
+.hr-saldo.is-bad-main .hr-saldo__main { color: var(--hr-bad); }
+.hr-calc {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
+  padding-top: 10px; margin-bottom: 6px;
+  border-top: 1px solid var(--hr-line);
+  font-size: .88rem; color: var(--hr-text-2);
+}
+.hr-calc__item b { font-weight: 700; margin-left: 4px; }
+.hr-calc__op { color: var(--hr-faint); }
