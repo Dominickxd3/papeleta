@@ -287,22 +287,29 @@ body.dark .hr-page.active { color: #0b1220; }
 
 /* ---------- Panel lateral: historial ---------- */
 body.hr-no-scroll { overflow: hidden; }
+@keyframes hr-pop { from { opacity: 0; transform: translate(-50%, -48%) scale(.98); } to { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .hr-drawer { animation: none; } }
 .hr-drawer-overlay {
   position: fixed; inset: 0; z-index: 90;
-  background: rgba(15, 23, 42, .35);
+  background: rgba(15, 23, 42, .45);
 }
 .hr-drawer-overlay[hidden], .hr-drawer[hidden] { display: none; }
 .hr-drawer {
   --hr-card: #ffffff; --hr-head: #f8fafc; --hr-line: #e8edf3;
   --hr-text: #0f172a; --hr-text-2: #334155; --hr-muted: #64748b; --hr-faint: #94a3b8; --hr-accent: #1e3a8a;
   --hr-ok: #15803d; --hr-ok-bg: #ecfdf3; --hr-warn: #ea580c; --hr-warn-bg: #fff4ec; --hr-bad: #dc2626; --hr-bad-bg: #fef2f2;
-  position: fixed; top: 0; right: 0; bottom: 0; z-index: 91;
-  width: min(760px, 100vw);
+  position: fixed; top: 50%; left: 50%; z-index: 91;
+  transform: translate(-50%, -50%);
+  width: min(920px, calc(100vw - 32px));
+  max-height: min(86vh, 860px);
   display: flex; flex-direction: column;
   background: var(--hr-card);
   color: var(--hr-text);
-  border-left: 1px solid var(--hr-line);
-  box-shadow: -12px 0 32px rgba(15, 23, 42, .12);
+  border: 1px solid var(--hr-line);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, .22);
+  animation: hr-pop .16s ease-out;
 }
 body.dark .hr-drawer {
   --hr-card: #111827; --hr-head: #0f172a; --hr-line: rgba(255, 255, 255, .08);
@@ -344,7 +351,7 @@ body.dark .hr-drawer {
 .hr-chip b { margin-left: 4px; color: var(--hr-muted); font-weight: 600; }
 .hr-chip.active { border-color: var(--hr-accent); color: var(--hr-accent); background: var(--hr-head); }
 .hr-chip.active b { color: var(--hr-accent); }
-.hr-drawer__body { flex: 1; overflow-y: auto; }
+.hr-drawer__body { flex: 1; min-height: 0; overflow-y: auto; }
 .hr-table--drawer thead th { position: sticky; top: 0; z-index: 1; }
 .hr-table--drawer td.center { white-space: nowrap; }
 .hr-detalle { font-size: .88rem; line-height: 1.6; }
