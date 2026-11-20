@@ -114,7 +114,10 @@ SELECT
          THEN DATEDIFF(minute, CAST(g.Ultima AS time), CAST(r.SalidaOutHour AS time)) ELSE 0 END AS MinutosSalidaAntes,
     CASE WHEN g.Cant > 1 THEN CAST(DATEDIFF(minute, g.Primera, g.Ultima) / 60.0 AS decimal(5,2)) ELSE 0 END AS HorasEntreMarcas,
     CASE WHEN ISNULL(r.TimeAttendanceMinutos, 0) > 0 AND g.Cant IS NULL THEN ''SI'' ELSE ''NO'' END AS SinMarcas,
-    CASE WHEN r.Holiday = ''FE'' THEN ''SI'' ELSE ''NO'' END AS Feriado
+    CASE WHEN r.Holiday = ''FE'' THEN ''SI'' ELSE ''NO'' END AS Feriado,
+    CASE WHEN EXISTS (SELECT 1 FROM SIGA_ASISTENCIA.dbo.AsignarDiasVacaciones v
+                      WHERE v.UsuarioId = d.UsuarioId AND ISNULL(v.Status, 1) = 1 AND ISNULL(v.lVendido, ''0'') <> ''1''
+                        AND d.Fecha BETWEEN v.FechaInicio AND v.FechaFin) THEN ''SI'' ELSE ''NO'' END AS VacSIGA
 FROM dias d
 JOIN u ON u.UsuarioId = d.UsuarioId
 LEFT JOIN r ON r.UsuarioId = d.UsuarioId AND r.Fecha = d.Fecha
@@ -130,7 +133,7 @@ LEFT JOIN agg g ON g.UsuarioId = d.UsuarioId AND g.Fecha = d.Fecha';
         Marca5 char(5), Marca6 char(5), Marca7 char(5), Marca8 char(5),
         LugarEntrada varchar(10), LugarSalida varchar(10), MarcasManuales int,
         MinutosTarde int, MinutosSalidaAntes int, HorasEntreMarcas decimal(5,2),
-        SinMarcas varchar(2), Feriado varchar(2)
+        SinMarcas varchar(2), Feriado varchar(2), VacSIGA varchar(2)
     );
 
     DECLARE @sql nvarchar(max) = N'INSERT INTO #asis SELECT * FROM OPENQUERY([10.10.1.3,1433], ''' + REPLACE(@q, N'''', N'''''') + N''')';
@@ -181,6 +184,13 @@ LEFT JOIN agg g ON g.UsuarioId = d.UsuarioId AND g.Fecha = d.Fecha';
         a.LugarEntrada, a.LugarSalida, a.MarcasManuales,
         a.MinutosTarde, a.MinutosSalidaAntes, a.HorasEntreMarcas,
         a.SinMarcas, a.Feriado,
+        -- Vacaciones: registradas en SIGA (AsignarDiasVacaciones) o en una papeleta con rango de vacaciones
+        CASE WHEN a.VacSIGA = 'SI' OR EXISTS (
+                 SELECT 1 FROM dbo.TBL_GGHH_PapeletaPermiso pv
+                 WHERE pv.ActivoPP = '1' AND LTRIM(RTRIM(pv.DOIPP)) = a.DNI COLLATE DATABASE_DEFAULT
+                   AND pv.FechaVacDesdePP IS NOT NULL AND pv.FechaVacHastaPP IS NOT NULL
+                   AND CAST(a.Fecha AS date) BETWEEN pv.FechaVacDesdePP AND pv.FechaVacHastaPP)
+             THEN 'SI' ELSE 'NO' END AS Vacaciones,
         ISNULL(pd.Cant, 0) AS CantidadPapeletas,
         pd.Numeros AS NumeroPapeleta,
         pd.Tipos AS TipoPermiso,

@@ -203,6 +203,10 @@ body.dark .hr-avatar { background: rgba(255, 255, 255, .08); color: #94a3b8; }
 .hr-pill--ok { background: var(--hr-ok-bg); color: var(--hr-ok); }
 .hr-pill--warn { background: var(--hr-warn-bg); color: var(--hr-warn); }
 .hr-pill--bad { background: var(--hr-bad-bg); color: var(--hr-bad); }
+.hr-pill--vac { background: #eef2ff; color: #3730a3; }
+body.dark .hr-pill--vac { background: rgba(129, 140, 248, .14); color: #a5b4fc; }
+.hr-txt-vac { color: #3730a3; font-weight: 600; }
+body.dark .hr-txt-vac { color: #a5b4fc; }
 
 /* Papeleta */
 .hr-perm { display: flex; align-items: flex-start; gap: 8px; max-width: 300px; }

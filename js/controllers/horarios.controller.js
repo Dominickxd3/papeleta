@@ -86,10 +86,13 @@
 
   // ---------- reglas ----------
   const esHoy = (r) => r.Fecha === isoLocal(new Date());
-  const esTarde = (r) => num(r.MinutosTarde) > 0;
-  const esSinMarca = (r) => r.SinMarcas === 'SI';
+  // Vacaciones: registradas en SIGA o en una papeleta con rango de vacaciones.
+  // Un dia de vacaciones no cuenta como falta, tardanza, salida ni tiempo extra.
+  const esVacaciones = (r) => r.Vacaciones === 'SI';
+  const esTarde = (r) => !esVacaciones(r) && num(r.MinutosTarde) > 0;
+  const esSinMarca = (r) => !esVacaciones(r) && r.SinMarcas === 'SI';
   const tienePapeleta = (r) => num(r.CantidadPapeletas) > 0;
-  const saleAntes = (r) => num(r.MinutosSalidaAntes) > 0 && num(r.CantidadMarcas) > 1;
+  const saleAntes = (r) => !esVacaciones(r) && num(r.MinutosSalidaAntes) > 0 && num(r.CantidadMarcas) > 1;
 
   const aMinutos = (hhmm) => {
     const m = /^(\d{1,2}):(\d{2})/.exec(hora(hhmm));
@@ -98,7 +101,7 @@
 
   // Tiempo extra: minutos que se quedo despues de su hora de salida programada.
   function minutosExtra(r) {
-    if (num(r.CantidadMarcas) < 2) return 0;
+    if (esVacaciones(r) || num(r.CantidadMarcas) < 2) return 0;
     const ultima = aMinutos(r.UltimaMarca);
     const salida = aMinutos(r.HoraSalidaProgramada);
     const entrada = aMinutos(r.HoraEntradaProgramada);
@@ -127,7 +130,7 @@
     const tarde = esTarde(r) ? num(r.MinutosTarde) : 0;
     const antes = saleAntes(r) ? num(r.MinutosSalidaAntes) : 0;
     const ev = { tarde: tarde, salida: antes, permiso: 0, justificado: 0, notas: [] };
-    if (!tienePapeleta(r) || esSinMarca(r)) return ev;
+    if (!tienePapeleta(r) || esSinMarca(r) || esVacaciones(r)) return ev;
 
     const E = aMinutos(r.HoraEntradaProgramada);
     const S = aMinutos(r.HoraSalidaProgramada);
@@ -215,6 +218,7 @@
       if (filtro === 'papeleta' && !tienePapeleta(r)) return false;
       if (filtro === 'salida' && !saleAntes(r)) return false;
       if (filtro === 'extra' && !tieneExtra(r)) return false;
+      if (filtro === 'vacaciones' && !esVacaciones(r)) return false;
       return true;
     });
   }
@@ -239,6 +243,7 @@
 
   // ---------- listado ----------
   function celdaEstado(r) {
+    if (esVacaciones(r)) return pill('Vacaciones', 'vac');
     if (esSinMarca(r)) return pill('Sin marcas', 'bad');
     if (num(r.CantidadMarcas) < 2) return esHoy(r) ? pill('En turno', 'ok') : pill('Sin salida', 'warn');
     if (saleAntes(r)) return pill('Salió antes', 'warn');
@@ -253,12 +258,14 @@
   }
 
   function celdaEntrada(r) {
+    if (esVacaciones(r) && !num(r.CantidadMarcas)) return nota('Vacaciones');
     if (esSinMarca(r)) return nota('Sin marca');
     const clase = esTarde(r) ? 'late' : (hora(r.HoraEntradaProgramada) ? 'ok' : '');
     return `<span class="hr-time ${clase}" title="${marcasTitulo(r)}">${esc(hora(r.PrimeraMarca || r.Marca1))}</span>`;
   }
 
   function celdaSalida(r) {
+    if (esVacaciones(r) && num(r.CantidadMarcas) < 2) return nota('Vacaciones');
     if (esSinMarca(r)) return nota('Sin marca');
     if (num(r.CantidadMarcas) < 2) return nota(esHoy(r) ? 'Pendiente' : 'Sin marca');
     const clase = saleAntes(r) ? 'late' : '';
@@ -271,7 +278,7 @@
 
   function celdaTardanza(r) {
     if (esTarde(r)) return pill(minutosTexto(r.MinutosTarde), 'warn', false);
-    if (esSinMarca(r)) return nota('No aplica');
+    if (esSinMarca(r) || esVacaciones(r)) return nota('No aplica');
     return nota('Puntual');
   }
 
@@ -360,7 +367,9 @@
         });
       }
       const s = map.get(r.DNI);
-      if (esSinMarca(r)) s.sinMarca += 1; else s.conMarca += 1;
+      if (esVacaciones(r)) s.vacaciones = (s.vacaciones || 0) + 1;
+      else if (esSinMarca(r)) s.sinMarca += 1;
+      else s.conMarca += 1;
       const tarde = esTarde(r) ? num(r.MinutosTarde) : 0;
       const antes = saleAntes(r) ? num(r.MinutosSalidaAntes) : 0;
       if (tarde) { s.diasTarde += 1; s.minTarde += tarde; }
@@ -430,11 +439,14 @@
     const total = s.conMarca + s.sinMarca;
     const sinRegistros = bloque(nota('Sin registros'), '');
     return {
-      asistencia: bloque(
-        `${numero(s.conMarca)} de ${plural(total, 'día', 'días')}`,
-        s.sinMarca ? `${plural(s.sinMarca, 'día', 'días')} sin marcar` : 'Marcó todos los días',
-        s.sinMarca ? 'is-bad' : ''
-      ),
+      asistencia: !total && s.vacaciones
+        ? bloque(nota('De vacaciones'), plural(s.vacaciones, 'día', 'días'))
+        : bloque(
+          `${numero(s.conMarca)} de ${plural(total, 'día', 'días')}`,
+          [s.sinMarca ? `${plural(s.sinMarca, 'día', 'días')} sin marcar` : 'Marcó todos los días',
+            s.vacaciones ? `${plural(s.vacaciones, 'día', 'días')} de vacaciones` : ''].filter(Boolean).join(' · '),
+          s.sinMarca ? 'is-bad' : ''
+        ),
       tardanzas: !s.conMarca ? sinRegistros : s.diasTarde
         ? bloque(plural(s.diasTarde, 'día tarde', 'días tarde'), `${minutosTexto(s.minTarde)} en total`, 'is-warn')
         : bloque(nota('Siempre puntual'), ''),
@@ -500,12 +512,17 @@
         </div>
       </div>
       ${justificado}
-      <p class="hr-cuenta__pie">Asistencia ${numero(s.conMarca)} de ${plural(total, 'día', 'días')}${s.sinMarca ? ` · ${plural(s.sinMarca, 'día', 'días')} sin marcar` : ''} · ${s.papeletas ? `${plural(s.papeletas, 'papeleta', 'papeletas')} (${numero(s.horas, 2)} h)` : 'Sin papeletas'}</p>`;
+      <p class="hr-cuenta__pie">Asistencia ${numero(s.conMarca)} de ${plural(total, 'día', 'días')}${s.sinMarca ? ` · ${plural(s.sinMarca, 'día', 'días')} sin marcar` : ''}${s.vacaciones ? ` · ${plural(s.vacaciones, 'día', 'días')} de vacaciones (no cuentan)` : ''} ·${s.papeletas ? `${plural(s.papeletas, 'papeleta', 'papeletas')} (${numero(s.horas, 2)} h)` : 'Sin papeletas'}</p>`;
   }
 
   // ---------- historial de un trabajador (panel lateral) ----------
   function detalleDia(r) {
     const partes = [];
+    if (esVacaciones(r)) {
+      partes.push('<span class="hr-txt-vac"><i class="fa-solid fa-umbrella-beach"></i> De vacaciones</span>');
+      if (num(r.CantidadMarcas)) partes.push(`<span class="hr-txt-warn">Marcó estando de vacaciones (${plural(num(r.CantidadMarcas), 'marca', 'marcas')})</span>`);
+      return partes.join('<br>');
+    }
     if (esSinMarca(r)) partes.push('<span class="hr-txt-bad">No marcó</span>');
     else if (num(r.CantidadMarcas) < 2 && !esHoy(r)) partes.push('<span class="hr-txt-warn">No marcó salida</span>');
     const ev = evaluarDia(r);
@@ -557,6 +574,7 @@
       sinmarca: dias.filter(esSinMarca).length,
       salida: dias.filter(saleAntes).length,
       extra: dias.filter(tieneExtra).length,
+      vacaciones: dias.filter(esVacaciones).length,
       papeleta: dias.filter(tienePapeleta).length
     };
     document.querySelectorAll('#hrDrawerFiltros .hr-chip').forEach((c) => {
@@ -569,6 +587,7 @@
       if (f === 'sinmarca') return esSinMarca(r);
       if (f === 'salida') return saleAntes(r);
       if (f === 'extra') return tieneExtra(r);
+      if (f === 'vacaciones') return esVacaciones(r);
       if (f === 'papeleta') return tienePapeleta(r);
       return true;
     });
