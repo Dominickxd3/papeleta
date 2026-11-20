@@ -119,6 +119,7 @@ function registerHorariosRoutes(app, deps) {
           CONVERT(char(10), H.Fecha, 23) AS Fecha,
           H.DiaSemana, H.Turno,
           H.HoraEntradaProgramada, H.HoraSalidaProgramada,
+          H.PrimeraMarca, H.UltimaMarca,
           H.Marca1, H.Marca2, H.Marca3, H.Marca4, H.CantidadMarcas,
           H.LugarEntrada, H.LugarSalida, H.MarcasManuales,
           H.MinutosTarde, H.MinutosSalidaAntes, H.HorasEntreMarcas,

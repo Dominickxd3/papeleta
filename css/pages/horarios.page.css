@@ -1,125 +1,330 @@
-/* Horarios del personal (usa la base de trabajadores.page.css) */
-.horarios-main .hr-filtros {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: flex-end;
+/* ==========================================================
+   Horarios del personal
+   ========================================================== */
+.horarios-main {
+  --hr-bg: var(--bg, #f4f6ff);
+  --hr-card: #ffffff;
+  --hr-soft: #f8fafc;
+  --hr-line: #e9eef5;
+  --hr-text: #0f172a;
+  --hr-muted: #64748b;
+  --hr-faint: #94a3b8;
+  --hr-brand: var(--brand1, #6d28d9);
+  --hr-brand-soft: rgba(109, 40, 217, .08);
+  --hr-ok: #15803d;
+  --hr-ok-soft: #e8f7ee;
+  --hr-warn: #c2410c;
+  --hr-warn-soft: #fff1e6;
+  --hr-bad: #b91c1c;
+  --hr-bad-soft: #fdecec;
+  --hr-pap: #6d28d9;
+  --hr-pap-soft: #f1ebff;
+  --hr-manual: #1d4ed8;
+  --hr-manual-soft: #e8efff;
+
+  padding: 24px 20px 40px;
+  background: var(--hr-bg);
+  color: var(--hr-text);
 }
 
-.horarios-main .hr-fecha {
+body.dark .horarios-main {
+  --hr-card: #111827;
+  --hr-soft: #0b1220;
+  --hr-line: rgba(255, 255, 255, .08);
+  --hr-text: #e5e7eb;
+  --hr-muted: #9ca3af;
+  --hr-faint: #6b7280;
+  --hr-brand-soft: rgba(167, 139, 250, .12);
+  --hr-ok: #4ade80;
+  --hr-ok-soft: rgba(74, 222, 128, .12);
+  --hr-warn: #fb923c;
+  --hr-warn-soft: rgba(251, 146, 60, .14);
+  --hr-bad: #f87171;
+  --hr-bad-soft: rgba(248, 113, 113, .14);
+  --hr-pap: #a78bfa;
+  --hr-pap-soft: rgba(167, 139, 250, .14);
+  --hr-manual: #93c5fd;
+  --hr-manual-soft: rgba(147, 197, 253, .14);
+}
+
+.hr-wrap {
+  max-width: 1360px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  font-size: .8rem;
-  font-weight: 700;
-  color: var(--muted);
+  gap: 14px;
 }
 
-.horarios-main .hr-fecha input,
-.horarios-main #hrFiltro {
-  height: 44px;
-  padding: 0 12px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: #fff;
-  color: var(--text);
-  font: inherit;
-}
-
-.horarios-main .hr-filtros .modern-search {
-  flex: 1 1 240px;
-}
-
-.horarios-main .hr-tabs {
+/* ---------- Encabezado ---------- */
+.hr-head {
   display: flex;
-  gap: 8px;
-  margin-top: 14px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
 }
+.hr-head__title { display: flex; align-items: center; gap: 14px; }
+.hr-head__icon {
+  width: 46px; height: 46px;
+  border-radius: 14px;
+  display: grid; place-items: center;
+  background: var(--hr-brand-soft);
+  color: var(--hr-brand);
+  font-size: 1.25rem;
+}
+.hr-head h1 { margin: 0; font-size: 1.6rem; font-weight: 900; line-height: 1.15; }
+.hr-head p { margin: 2px 0 0; color: var(--hr-muted); font-weight: 600; font-size: .9rem; }
+.hr-head__actions { display: flex; align-items: center; gap: 12px; }
+.hr-updated { color: var(--hr-faint); font-size: .8rem; font-weight: 600; }
 
-.horarios-main .hr-tab {
-  padding: 9px 16px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: #fff;
-  color: var(--text);
-  font-weight: 700;
+.hr-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 40px; padding: 0 16px;
+  border: 1px solid var(--hr-line);
+  border-radius: 12px;
+  background: var(--hr-card);
+  color: var(--hr-text);
+  font-weight: 800; font-size: .85rem;
   cursor: pointer;
 }
+.hr-btn:hover { border-color: var(--hr-brand); color: var(--hr-brand); }
+.hr-btn:disabled { opacity: .6; cursor: wait; }
+.hr-btn:disabled i { animation: hr-spin 1s linear infinite; }
+@keyframes hr-spin { to { transform: rotate(360deg); } }
 
-.horarios-main .hr-tab.active {
-  background: linear-gradient(90deg, var(--brand1), var(--brand2));
-  border-color: transparent;
-  color: #fff;
+/* ---------- Indicadores ---------- */
+.hr-kpis {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
 }
-
-.horarios-main .hr-tabla {
-  min-width: 1100px;
+.hr-kpi {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--hr-line);
+  border-radius: 16px;
+  background: var(--hr-card);
+  color: var(--hr-text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .15s, box-shadow .15s;
 }
+.hr-kpi:hover { border-color: var(--hr-faint); }
+.hr-kpi.active { border-color: var(--hr-brand); box-shadow: 0 0 0 3px var(--hr-brand-soft); }
+.hr-kpi__label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: .72rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--hr-muted);
+}
+.hr-kpi strong { font-size: 1.7rem; font-weight: 900; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.hr-kpi small { color: var(--hr-faint); font-size: .76rem; font-weight: 600; }
+.hr-kpi--warn .hr-kpi__label i { color: var(--hr-warn); }
+.hr-kpi--bad .hr-kpi__label i { color: var(--hr-bad); }
+.hr-kpi--pap .hr-kpi__label i { color: var(--hr-pap); }
 
-.horarios-main .hr-tabla tbody td {
+/* ---------- Filtros ---------- */
+.hr-toolbar {
+  display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between;
+  gap: 12px;
   padding: 12px;
-  font-size: .9rem;
+  border: 1px solid var(--hr-line);
+  border-radius: 16px;
+  background: var(--hr-card);
+}
+.hr-range, .hr-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.hr-filters { flex: 1 1 380px; justify-content: flex-end; }
+.hr-field { display: flex; flex-direction: column; gap: 4px; }
+.hr-field span { font-size: .72rem; font-weight: 800; color: var(--hr-muted); letter-spacing: .04em; text-transform: uppercase; }
+
+.hr-field input,
+.hr-filters select,
+.hr-search input {
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--hr-line);
+  border-radius: 10px;
+  background: var(--hr-soft);
+  color: var(--hr-text);
+  font: inherit; font-size: .88rem; font-weight: 600;
+  outline: none;
+}
+.hr-field input:focus,
+.hr-filters select:focus,
+.hr-search input:focus { border-color: var(--hr-brand); box-shadow: 0 0 0 3px var(--hr-brand-soft); }
+
+.hr-quick { display: flex; gap: 6px; flex-wrap: wrap; }
+.hr-quick button {
+  height: 40px; padding: 0 12px;
+  border: 1px solid var(--hr-line);
+  border-radius: 10px;
+  background: var(--hr-card);
+  color: var(--hr-muted);
+  font-weight: 700; font-size: .82rem;
+  cursor: pointer;
+}
+.hr-quick button:hover { color: var(--hr-brand); border-color: var(--hr-brand); }
+.hr-quick button.active { background: var(--hr-brand-soft); color: var(--hr-brand); border-color: transparent; }
+
+.hr-search { position: relative; flex: 1 1 220px; max-width: 340px; }
+.hr-search i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--hr-faint); font-size: .85rem; }
+.hr-search input { width: 100%; padding-left: 34px; }
+
+/* ---------- Pestañas ---------- */
+.hr-tabsbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.hr-tabs { display: inline-flex; padding: 4px; gap: 4px; border-radius: 12px; background: var(--hr-card); border: 1px solid var(--hr-line); }
+.hr-tab {
+  display: inline-flex; align-items: center; gap: 8px;
+  height: 36px; padding: 0 14px;
+  border: 0; border-radius: 9px;
+  background: transparent;
+  color: var(--hr-muted);
+  font-weight: 800; font-size: .85rem;
+  cursor: pointer;
+}
+.hr-tab.active { background: var(--hr-brand); color: #fff; }
+.hr-count { margin: 0; color: var(--hr-muted); font-size: .85rem; font-weight: 600; }
+
+/* ---------- Tablas ---------- */
+.hr-card {
+  border: 1px solid var(--hr-line);
+  border-radius: 16px;
+  background: var(--hr-card);
+  overflow: hidden;
+}
+.hr-card[hidden] { display: none; }
+
+.hr-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+.hr-table thead th {
+  position: sticky; top: 0; z-index: 2;
+  padding: 11px 14px;
+  background: var(--hr-soft);
+  border-bottom: 1px solid var(--hr-line);
+  color: var(--hr-muted);
+  font-size: .72rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+  text-align: left;
   white-space: nowrap;
 }
-
-.horarios-main .hr-muted {
-  color: var(--muted);
-  font-size: .8rem;
+.hr-table th.num, .hr-table td.num { text-align: right; }
+.hr-table tbody td {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--hr-line);
+  vertical-align: middle;
 }
+.hr-table tbody tr:last-child td { border-bottom: 0; }
+.hr-table tbody tr.hr-row:hover td { background: var(--hr-soft); }
 
-.horarios-main .hr-sin {
-  color: #b91c1c;
-  font-weight: 700;
+/* Estado de la fila: borde de color a la izquierda */
+.hr-row td:first-child { box-shadow: inset 3px 0 0 transparent; }
+.hr-row.is-sin td:first-child { box-shadow: inset 3px 0 0 var(--hr-bad); }
+.hr-row.is-tarde td:first-child { box-shadow: inset 3px 0 0 var(--hr-warn); }
+.hr-row.is-pap td:first-child { box-shadow: inset 3px 0 0 var(--hr-pap); }
+
+/* Separador de día */
+.hr-day td {
+  padding: 9px 14px !important;
+  background: var(--hr-brand-soft);
+  border-bottom: 1px solid var(--hr-line);
+  font-size: .82rem;
 }
+.hr-day__date { font-weight: 900; color: var(--hr-text); text-transform: capitalize; }
+.hr-day__meta { margin-left: 10px; color: var(--hr-muted); font-weight: 600; }
+.hr-day__meta b { color: var(--hr-text); }
 
-.horarios-main .hr-motivo {
-  white-space: normal !important;
-  max-width: 260px;
-  min-width: 160px;
-}
+.hr-name { font-weight: 800; line-height: 1.25; }
+.hr-sub { color: var(--hr-muted); font-size: .78rem; margin-top: 2px; line-height: 1.3; }
+.hr-time { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+.hr-time.ok { color: var(--hr-ok); }
+.hr-time.late { color: var(--hr-warn); }
+.hr-time.early { color: var(--hr-bad); }
+.hr-none { color: var(--hr-faint); }
 
-.horarios-main .hr-con-papeleta {
-  background: rgba(124, 58, 237, .05);
-}
-
-.horarios-main .hr-chip {
-  display: inline-block;
+.hr-tag {
+  display: inline-flex; align-items: center; gap: 4px;
   padding: 2px 8px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, .08);
-  font-size: .75rem;
-  font-weight: 700;
+  font-size: .72rem; font-weight: 800;
+  white-space: nowrap;
+  background: var(--hr-soft); color: var(--hr-muted);
+}
+.hr-tag--warn { background: var(--hr-warn-soft); color: var(--hr-warn); }
+.hr-tag--bad { background: var(--hr-bad-soft); color: var(--hr-bad); }
+.hr-tag--pap { background: var(--hr-pap-soft); color: var(--hr-pap); }
+.hr-tag--manual { background: var(--hr-manual-soft); color: var(--hr-manual); }
+.hr-tag--ok { background: var(--hr-ok-soft); color: var(--hr-ok); }
+
+.hr-perm { max-width: 340px; }
+.hr-perm__head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-weight: 800; }
+.hr-perm__time { font-size: .82rem; margin-top: 3px; font-variant-numeric: tabular-nums; }
+.hr-perm__motivo {
+  margin-top: 2px;
+  color: var(--hr-muted); font-size: .78rem; font-style: italic;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
 
-.horarios-main .hr-chip-tarde {
-  background: rgba(234, 88, 12, .14);
-  color: #c2410c;
+.hr-empty { padding: 40px 14px !important; text-align: center; color: var(--hr-muted); }
+.hr-empty i { display: block; font-size: 1.6rem; margin-bottom: 8px; color: var(--hr-faint); }
+
+.hr-more td { text-align: center; padding: 14px !important; }
+
+/* Resumen */
+.hr-table--resumen th.sortable { cursor: pointer; user-select: none; }
+.hr-table--resumen th.sortable:hover { color: var(--hr-text); }
+.hr-table--resumen th.sortable::after { content: '\2195'; margin-left: 6px; opacity: .35; }
+.hr-table--resumen th.sort-asc::after { content: '\2191'; opacity: 1; }
+.hr-table--resumen th.sort-desc::after { content: '\2193'; opacity: 1; }
+.hr-table td.num { font-variant-numeric: tabular-nums; font-weight: 700; }
+.hr-zero { color: var(--hr-faint); font-weight: 500 !important; }
+
+.hr-bar { display: flex; align-items: center; gap: 10px; min-width: 170px; }
+.hr-bar__track { flex: 1; height: 8px; border-radius: 999px; background: var(--hr-bad-soft); overflow: hidden; }
+.hr-bar__fill { height: 100%; border-radius: 999px; background: var(--hr-ok); }
+.hr-bar__txt { font-size: .8rem; font-weight: 700; color: var(--hr-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1100px) {
+  .hr-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .hr-filters { justify-content: flex-start; }
 }
 
-.horarios-main .hr-chip-manual {
-  background: rgba(37, 99, 235, .12);
-  color: #1d4ed8;
-}
+@media (max-width: 760px) {
+  .horarios-main { padding: 14px 12px 28px; }
+  .hr-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hr-kpi strong { font-size: 1.35rem; }
+  .hr-search { max-width: none; }
+  .hr-filters > * { flex: 1 1 100%; }
+  .hr-tabs { width: 100%; }
+  .hr-tab { flex: 1; justify-content: center; }
 
-.horarios-main .hr-vacio {
-  padding: 28px 12px !important;
-  text-align: center;
-  color: var(--muted);
-}
-
-body.dark .horarios-main .hr-fecha input,
-body.dark .horarios-main #hrFiltro,
-body.dark .horarios-main .hr-tab:not(.active) {
-  background: #111827;
-  color: #e5e7eb;
-  border-color: rgba(255, 255, 255, .14);
-}
-
-@media (max-width: 700px) {
-  .horarios-main .hr-filtros > * {
-    flex: 1 1 100%;
+  /* Tabla como tarjetas */
+  .hr-card { background: transparent; border: 0; overflow: visible; }
+  .hr-table thead { display: none; }
+  .hr-table, .hr-table tbody, .hr-table tr, .hr-table td { display: block; width: 100%; }
+  .hr-row {
+    margin-bottom: 10px;
+    border: 1px solid var(--hr-line);
+    border-radius: 14px;
+    background: var(--hr-card);
+    overflow: hidden;
   }
-  .horarios-main .hr-tabs {
-    flex-wrap: wrap;
+  .hr-row td {
+    display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+    padding: 8px 14px !important;
+    border-bottom: 1px solid var(--hr-line);
+    text-align: right !important;
   }
+  .hr-row td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    color: var(--hr-muted); font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .04em;
+    text-align: left;
+  }
+  .hr-row td:first-child { display: block; text-align: left !important; background: var(--hr-soft); }
+  .hr-row td:first-child::before { content: none; }
+  .hr-row td:last-child { border-bottom: 0; }
+  .hr-row td:empty { display: none; }
+  .hr-day { display: block; margin: 14px 0 8px; }
+  .hr-day td { border-radius: 10px; border: 0; }
+  .hr-perm { max-width: none; text-align: right; }
+  .hr-perm__head { justify-content: flex-end; }
+  .hr-bar { min-width: 0; width: 60%; }
 }

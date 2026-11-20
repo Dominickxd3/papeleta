@@ -30,6 +30,8 @@ SELECT
     v.Turno,
     v.HoraEntradaProgramada,
     v.HoraSalidaProgramada,
+    v.PrimeraMarca,
+    v.UltimaMarca,
     v.Marca1,
     v.Marca2,
     v.Marca3,

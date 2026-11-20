@@ -15,8 +15,6 @@
   <link rel="stylesheet" href="../css/base/reset.css">
   <link rel="stylesheet" href="../css/layout/sidebar.css">
   <link rel="stylesheet" href="../css/layout/topbar.css">
-  <link rel="stylesheet" href="../css/components/table.css">
-  <link rel="stylesheet" href="../css/pages/trabajadores.page.css">
   <link rel="stylesheet" href="../css/pages/horarios.page.css">
 </head>
 <body>
@@ -129,119 +127,124 @@
     </div>
   </header>
 
-  <main class="main trabajadores-main horarios-main">
-    <section class="contenedor-trabajadores">
-      <div class="card-trabajadores">
-        <div class="header-trabajadores modern-header">
-          <div class="titulo">
-            <i class="fa-solid fa-clock"></i>
-            <div>
-              <h2>Horarios del personal</h2>
-              <p id="hrAlcance">Horario programado, marcas del reloj y papeletas del día</p>
-            </div>
-          </div>
-          <div class="header-tools">
-            <div class="acciones-top modern-actions">
-              <button id="btnHrActualizar" class="btn btn-secondary" type="button">
-                <i class="fa-solid fa-rotate"></i> Actualizar
-              </button>
-            </div>
+  <main class="main horarios-main">
+    <section class="hr-wrap">
+
+      <header class="hr-head">
+        <div class="hr-head__title">
+          <span class="hr-head__icon"><i class="fa-solid fa-clock"></i></span>
+          <div>
+            <h1>Horarios del personal</h1>
+            <p id="hrAlcance">Horario programado, marcas del reloj y papeletas del día</p>
           </div>
         </div>
+        <div class="hr-head__actions">
+          <span class="hr-updated" id="hrActualizado"></span>
+          <button id="btnHrActualizar" class="hr-btn" type="button">
+            <i class="fa-solid fa-rotate"></i><span>Actualizar</span>
+          </button>
+        </div>
+      </header>
 
-        <div class="stats-grid hr-stats">
-          <div class="stat-card">
-            <div class="stat-icon primary"><i class="fa-solid fa-users"></i></div>
-            <div class="stat-info"><h3 id="hrStatTrab">0</h3><p>Trabajadores</p></div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-icon info"><i class="fa-solid fa-user-clock"></i></div>
-            <div class="stat-info"><h3 id="hrStatTarde">0</h3><p>Días con tardanza</p></div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-icon success"><i class="fa-solid fa-file-lines"></i></div>
-            <div class="stat-info"><h3 id="hrStatPap">0</h3><p>Papeletas</p></div>
-          </div>
-          <div class="stat-card stat-card-focus">
-            <div class="stat-icon success"><i class="fa-solid fa-hourglass-half"></i></div>
-            <div class="stat-info"><h3 id="hrStatHoras">0</h3><p>Horas de permiso</p></div>
+      <div class="hr-kpis" id="hrKpis">
+        <button type="button" class="hr-kpi" data-filtro="">
+          <span class="hr-kpi__label"><i class="fa-solid fa-users"></i> Trabajadores</span>
+          <strong id="hrStatTrab">0</strong>
+          <small id="hrStatTrabSub">&nbsp;</small>
+        </button>
+        <button type="button" class="hr-kpi hr-kpi--warn" data-filtro="tarde">
+          <span class="hr-kpi__label"><i class="fa-solid fa-user-clock"></i> Tardanzas</span>
+          <strong id="hrStatTarde">0</strong>
+          <small id="hrStatTardeSub">&nbsp;</small>
+        </button>
+        <button type="button" class="hr-kpi hr-kpi--bad" data-filtro="sinmarca">
+          <span class="hr-kpi__label"><i class="fa-solid fa-user-xmark"></i> Sin marcas</span>
+          <strong id="hrStatSin">0</strong>
+          <small>días sin marcar</small>
+        </button>
+        <button type="button" class="hr-kpi hr-kpi--pap" data-filtro="papeleta">
+          <span class="hr-kpi__label"><i class="fa-solid fa-file-lines"></i> Papeletas</span>
+          <strong id="hrStatPap">0</strong>
+          <small id="hrStatPapSub">&nbsp;</small>
+        </button>
+        <button type="button" class="hr-kpi hr-kpi--pap" data-filtro="papeleta">
+          <span class="hr-kpi__label"><i class="fa-solid fa-hourglass-half"></i> Horas de permiso</span>
+          <strong id="hrStatHoras">0</strong>
+          <small>horas con papeleta</small>
+        </button>
+      </div>
+
+      <div class="hr-toolbar">
+        <div class="hr-range">
+          <label class="hr-field"><span>Desde</span><input type="date" id="hrDesde"></label>
+          <label class="hr-field"><span>Hasta</span><input type="date" id="hrHasta"></label>
+          <div class="hr-quick" role="group" aria-label="Rangos rápidos">
+            <button type="button" data-rango="hoy">Hoy</button>
+            <button type="button" data-rango="semana">Esta semana</button>
+            <button type="button" data-rango="mes">Este mes</button>
+            <button type="button" data-rango="mesAnterior">Mes anterior</button>
           </div>
         </div>
-
-        <div class="filtros-trabajadores modern-filters hr-filtros">
-          <label class="hr-fecha">
-            <span>Desde</span>
-            <input type="date" id="hrDesde">
-          </label>
-          <label class="hr-fecha">
-            <span>Hasta</span>
-            <input type="date" id="hrHasta">
-          </label>
-          <div class="modern-search">
-            <input type="text" id="hrBuscar" placeholder="Buscar por nombre o DNI...">
+        <div class="hr-filters">
+          <label class="hr-search">
             <i class="fa-solid fa-magnifying-glass"></i>
-          </div>
+            <input type="search" id="hrBuscar" placeholder="Buscar por nombre o DNI">
+          </label>
+          <select id="hrArea" aria-label="Área" hidden>
+            <option value="">Todas las áreas</option>
+          </select>
           <select id="hrFiltro" aria-label="Filtrar días">
             <option value="">Todos los días</option>
-            <option value="papeleta">Con papeleta</option>
             <option value="tarde">Con tardanza</option>
             <option value="sinmarca">Sin marcas</option>
+            <option value="papeleta">Con papeleta</option>
+            <option value="salida">Salida antes de hora</option>
           </select>
         </div>
+      </div>
 
+      <div class="hr-tabsbar">
         <div class="hr-tabs" role="tablist">
-          <button type="button" class="hr-tab active" data-vista="detalle" role="tab" aria-selected="true">Detalle por día</button>
-          <button type="button" class="hr-tab" data-vista="resumen" role="tab" aria-selected="false">Resumen por trabajador</button>
+          <button type="button" class="hr-tab active" data-vista="detalle" role="tab" aria-selected="true"><i class="fa-solid fa-calendar-day"></i> Detalle por día</button>
+          <button type="button" class="hr-tab" data-vista="resumen" role="tab" aria-selected="false"><i class="fa-solid fa-chart-simple"></i> Resumen por trabajador</button>
         </div>
+        <p class="hr-count" id="hrResumenTexto"></p>
       </div>
 
-      <div class="card-tabla" id="hrCardDetalle">
-        <div class="tabla-wrap">
-          <table class="tabla hr-tabla" id="hrTablaDetalle">
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Trabajador</th>
-                <th>Horario</th>
-                <th>Marcas</th>
-                <th>Tarde</th>
-                <th>Papeleta</th>
-                <th>Permiso</th>
-                <th>Tipo</th>
-                <th>Motivo</th>
-                <th>Horas</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr><td colspan="10"><div class="loading"><i class="fas fa-spinner fa-spin"></i><p>Cargando horarios...</p></div></td></tr>
-            </tbody>
-          </table>
-        </div>
+      <div class="hr-card" id="hrCardDetalle">
+        <table class="hr-table" id="hrTablaDetalle">
+          <thead>
+            <tr>
+              <th>Trabajador</th>
+              <th>Horario</th>
+              <th>Entrada</th>
+              <th>Salida</th>
+              <th>Tardanza</th>
+              <th>Papeleta / permiso</th>
+              <th class="num">Horas</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
       </div>
 
-      <div class="card-tabla" id="hrCardResumen" hidden>
-        <div class="tabla-wrap">
-          <table class="tabla hr-tabla" id="hrTablaResumen">
-            <thead>
-              <tr>
-                <th>Trabajador</th>
-                <th>Área</th>
-                <th>Días con marca</th>
-                <th>Días sin marca</th>
-                <th>Días con tardanza</th>
-                <th>Minutos tarde</th>
-                <th>Papeletas</th>
-                <th>Horas de permiso</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
+      <div class="hr-card" id="hrCardResumen" hidden>
+        <table class="hr-table hr-table--resumen" id="hrTablaResumen">
+          <thead>
+            <tr>
+              <th data-orden="Trabajador" class="sortable">Trabajador</th>
+              <th data-orden="asistencia" class="sortable">Asistencia</th>
+              <th data-orden="diasTarde" class="sortable num">Tardanzas</th>
+              <th data-orden="minTarde" class="sortable num">Tiempo tarde</th>
+              <th data-orden="salidas" class="sortable num">Salidas antes</th>
+              <th data-orden="papeletas" class="sortable num">Papeletas</th>
+              <th data-orden="horas" class="sortable num">Horas permiso</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
       </div>
 
-      <div class="trabajadores-footer">
-        <p id="hrResumenTexto">Mostrando 0 registros</p>
-      </div>
     </section>
   </main>
 
