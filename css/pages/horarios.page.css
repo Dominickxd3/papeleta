@@ -169,13 +169,6 @@ body.dark .horarios-main {
 .hr-table tbody tr:last-child td { border-bottom: 0; }
 .hr-table tbody tr.hr-row:hover td { background: var(--hr-head); }
 
-.hr-day td {
-  padding: 8px 14px !important;
-  background: var(--hr-head);
-  font-size: .8rem;
-  color: var(--hr-muted);
-}
-.hr-day__date { font-weight: 700; color: var(--hr-text-2); }
 
 /* Trabajador */
 .hr-worker { display: flex; align-items: center; gap: 12px; min-width: 240px; }
@@ -214,6 +207,33 @@ body.dark .hr-avatar { background: rgba(255, 255, 255, .08); color: #94a3b8; }
 .hr-perm { display: flex; align-items: flex-start; gap: 8px; max-width: 300px; }
 .hr-perm > i { color: var(--hr-muted); margin-top: 2px; }
 .hr-perm__head { font-weight: 700; color: var(--hr-text); font-size: .82rem; }
+
+.hr-perm__hours { margin-left: 6px; font-weight: 600; color: var(--hr-muted); font-size: .78rem; }
+
+/* Texto cuando no hay dato (en lugar de guiones) */
+.hr-note { color: var(--hr-faint); font-size: .8rem; white-space: nowrap; }
+
+/* Resumen: valor con unidad + detalle */
+.hr-stat__main { font-weight: 700; color: var(--hr-text); white-space: nowrap; }
+.hr-stat__main .hr-note { font-weight: 400; }
+.hr-stat.is-warn .hr-stat__main { color: var(--hr-warn); }
+.hr-stat.is-bad .hr-sub { color: var(--hr-bad); }
+
+/* Indicador en vivo */
+.hr-updated { display: inline-flex; align-items: center; gap: 8px; }
+.hr-live {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--hr-ok);
+  box-shadow: 0 0 0 0 rgba(21, 128, 61, .4);
+  animation: hr-pulse 2s infinite;
+}
+.hr-live--off { background: var(--hr-faint); animation: none; }
+@keyframes hr-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(21, 128, 61, .35); }
+  70% { box-shadow: 0 0 0 7px rgba(21, 128, 61, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(21, 128, 61, 0); }
+}
+@media (prefers-reduced-motion: reduce) { .hr-live { animation: none; } }
 
 .hr-empty { padding: 40px 14px !important; text-align: center; color: var(--hr-muted); }
 .hr-empty i { display: block; font-size: 1.5rem; margin-bottom: 8px; color: var(--hr-faint); }
@@ -258,8 +278,6 @@ body.dark .hr-avatar { background: rgba(255, 255, 255, .08); color: #94a3b8; }
   .hr-row td:first-child { display: block; text-align: left !important; }
   .hr-row td:first-child::before { content: none; }
   .hr-row td:last-child { border-bottom: 0; }
-  .hr-day { display: block; margin: 14px 0 8px; }
-  .hr-day td { border-radius: 8px; }
   .hr-perm { max-width: none; text-align: right; }
   .hr-worker { min-width: 0; }
 }
