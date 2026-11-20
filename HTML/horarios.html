@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b1220" />
+  <link rel="icon" type="image/png" href="/img/logo-gp.png" />
+  <link rel="apple-touch-icon" href="/img/logo-gp.png" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <title>Horarios del personal</title>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <link rel="stylesheet" href="../css/base/variables.css">
+  <link rel="stylesheet" href="../css/base/reset.css">
+  <link rel="stylesheet" href="../css/layout/sidebar.css">
+  <link rel="stylesheet" href="../css/layout/topbar.css">
+  <link rel="stylesheet" href="../css/components/table.css">
+  <link rel="stylesheet" href="../css/pages/trabajadores.page.css">
+  <link rel="stylesheet" href="../css/pages/horarios.page.css">
+</head>
+<body>
+  <script>
+    // role-guard-horarios: ADMIN / RRHH o jefes (sw_nivel >= 2).
+    // El backend vuelve a validar y filtra a cada jefe por sus areas.
+    (function () {
+      function normalizeRole(role) {
+        return String(role || '')
+          .normalize('NFD')
+          .replace(/[̀-ͯ]/g, '')
+          .replace(/[^A-Za-z0-9 ]/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .toUpperCase();
+      }
+      const privileged = new Set(['ADMIN', 'ADMINISTRADOR', 'ADMINISTRADOR DEL SISTEMA', 'RRHH', 'RR HH', 'RECURSOS HUMANOS']);
+
+      const raw = localStorage.getItem('usuario');
+      if (!raw || raw === 'undefined' || raw === 'null') {
+        window.location.href = '../index.html';
+        return;
+      }
+      try {
+        const u = JSON.parse(raw);
+        const nivel = Number(u.sw_nivel || u.SwNivel || 0) || 0;
+        if (!privileged.has(normalizeRole(u.rol || u.Rol)) && nivel < 2) {
+          window.location.href = 'dashboard.html';
+        }
+      } catch {
+        window.location.href = 'dashboard.html';
+      }
+    })();
+  </script>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sb-top">
+      <a class="sb-brand" href="dashboard.html">
+        <img src="../img/logo-gp.png" alt="Grupo Pecuario" class="sb-logo" onerror="this.style.display='none'">
+        <div class="sb-brand-text">
+          <div class="sb-brand-title">Grupo Pecuario</div>
+          <div class="sb-brand-sub">Sistema GP</div>
+        </div>
+      </a>
+      <button class="sb-close" id="sbClose" type="button" aria-label="Cerrar menú">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <div class="sb-user">
+      <div class="sb-avatar"><i class="fa-solid fa-user"></i></div>
+      <div class="sb-user-meta">
+        <div class="sb-name" id="sbUserName">Usuario</div>
+        <div class="sb-role" id="sbUserRole">ROL</div>
+      </div>
+    </div>
+
+    <nav class="sb-menu">
+      <a href="dashboard.html" class="sb-item" id="mDashboard">
+        <i class="fa-solid fa-house"></i><span>Dashboard</span>
+      </a>
+      <a href="permisos.html" class="sb-item" id="mPermisos">
+        <i class="fa-solid fa-file-lines"></i><span>Papeletas</span>
+      </a>
+      <a href="horarios.html" class="sb-item" id="mHorarios">
+        <i class="fa-solid fa-clock"></i><span>Horarios</span>
+      </a>
+      <a href="trabajadores.html" class="sb-item" id="mTrabajadores">
+        <i class="fa-solid fa-users"></i><span>Trabajadores</span>
+      </a>
+      <a href="administrar.html" class="sb-item" id="mAdministrar">
+        <i class="fa-solid fa-user-shield"></i><span>Administrar</span>
+      </a>
+      <a href="perfil.html" class="sb-item" id="mPerfil">
+        <i class="fa-solid fa-user-gear"></i><span>Perfil</span>
+      </a>
+    </nav>
+
+    <div class="sb-footer">
+      <button class="sb-item sb-logout" id="btnSidebarLogout" type="button">
+        <i class="fa-solid fa-right-from-bracket"></i><span>Salir</span>
+      </button>
+      <div class="sb-toggle">
+        <div class="left">
+          <i class="fa-solid fa-moon"></i><span>Modo oscuro</span>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="themeToggle">
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+  </aside>
+
+  <div class="overlay" id="overlay"></div>
+
+  <header class="topbar">
+    <button class="hamburger" id="hamburger" type="button" aria-label="Abrir menú">
+      <i class="fa-solid fa-bars"></i>
+    </button>
+    <div class="topbar-right">
+      <div class="top-user">
+        <div class="name" id="userName">Usuario</div>
+        <div class="role" id="userRole">ROL</div>
+      </div>
+      <button class="btn-logout" id="btnLogout" type="button">
+        <i class="fa-solid fa-right-from-bracket"></i>
+        <span>Salir</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="main trabajadores-main horarios-main">
+    <section class="contenedor-trabajadores">
+      <div class="card-trabajadores">
+        <div class="header-trabajadores modern-header">
+          <div class="titulo">
+            <i class="fa-solid fa-clock"></i>
+            <div>
+              <h2>Horarios del personal</h2>
+              <p id="hrAlcance">Horario programado, marcas del reloj y papeletas del día</p>
+            </div>
+          </div>
+          <div class="header-tools">
+            <div class="acciones-top modern-actions">
+              <button id="btnHrActualizar" class="btn btn-secondary" type="button">
+                <i class="fa-solid fa-rotate"></i> Actualizar
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="stats-grid hr-stats">
+          <div class="stat-card">
+            <div class="stat-icon primary"><i class="fa-solid fa-users"></i></div>
+            <div class="stat-info"><h3 id="hrStatTrab">0</h3><p>Trabajadores</p></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon info"><i class="fa-solid fa-user-clock"></i></div>
+            <div class="stat-info"><h3 id="hrStatTarde">0</h3><p>Días con tardanza</p></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon success"><i class="fa-solid fa-file-lines"></i></div>
+            <div class="stat-info"><h3 id="hrStatPap">0</h3><p>Papeletas</p></div>
+          </div>
+          <div class="stat-card stat-card-focus">
+            <div class="stat-icon success"><i class="fa-solid fa-hourglass-half"></i></div>
+            <div class="stat-info"><h3 id="hrStatHoras">0</h3><p>Horas de permiso</p></div>
+          </div>
+        </div>
+
+        <div class="filtros-trabajadores modern-filters hr-filtros">
+          <label class="hr-fecha">
+            <span>Desde</span>
+            <input type="date" id="hrDesde">
+          </label>
+          <label class="hr-fecha">
+            <span>Hasta</span>
+            <input type="date" id="hrHasta">
+          </label>
+          <div class="modern-search">
+            <input type="text" id="hrBuscar" placeholder="Buscar por nombre o DNI...">
+            <i class="fa-solid fa-magnifying-glass"></i>
+          </div>
+          <select id="hrFiltro" aria-label="Filtrar días">
+            <option value="">Todos los días</option>
+            <option value="papeleta">Con papeleta</option>
+            <option value="tarde">Con tardanza</option>
+            <option value="sinmarca">Sin marcas</option>
+          </select>
+        </div>
+
+        <div class="hr-tabs" role="tablist">
+          <button type="button" class="hr-tab active" data-vista="detalle" role="tab" aria-selected="true">Detalle por día</button>
+          <button type="button" class="hr-tab" data-vista="resumen" role="tab" aria-selected="false">Resumen por trabajador</button>
+        </div>
+      </div>
+
+      <div class="card-tabla" id="hrCardDetalle">
+        <div class="tabla-wrap">
+          <table class="tabla hr-tabla" id="hrTablaDetalle">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Trabajador</th>
+                <th>Horario</th>
+                <th>Marcas</th>
+                <th>Tarde</th>
+                <th>Papeleta</th>
+                <th>Permiso</th>
+                <th>Tipo</th>
+                <th>Motivo</th>
+                <th>Horas</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="10"><div class="loading"><i class="fas fa-spinner fa-spin"></i><p>Cargando horarios...</p></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card-tabla" id="hrCardResumen" hidden>
+        <div class="tabla-wrap">
+          <table class="tabla hr-tabla" id="hrTablaResumen">
+            <thead>
+              <tr>
+                <th>Trabajador</th>
+                <th>Área</th>
+                <th>Días con marca</th>
+                <th>Días sin marca</th>
+                <th>Días con tardanza</th>
+                <th>Minutos tarde</th>
+                <th>Papeletas</th>
+                <th>Horas de permiso</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="trabajadores-footer">
+        <p id="hrResumenTexto">Mostrando 0 registros</p>
+      </div>
+    </section>
+  </main>
+
+  <script src="../js/api/api-client.js"></script>
+  <script src="../js/api/auth.api.js"></script>
+  <script src="../js/controllers/horarios.controller.js"></script>
+  <script src="../js/sidebar.js"></script>
+</body>
+</html>

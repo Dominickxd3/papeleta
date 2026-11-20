@@ -15,6 +15,7 @@ const { registerCatalogosRoutes } = require('./routes/catalogos.routes');
 const { registerSystemRoutes } = require('./routes/system.routes');
 const { registerAuthRoutes } = require('./routes/auth.routes');
 const { registerMonitoringRoutes } = require('./routes/monitoring.routes');
+const { registerHorariosRoutes } = require('./routes/horarios.routes');
 
 function loadEnvFile() {
   const envPath = path.join(__dirname, '.env');
@@ -71,20 +72,24 @@ const CORS_ORIGINS = (process.env.CORS_ORIGINS || '')
   .split(',')
   .map((x) => x.trim())
   .filter(Boolean);
+
 const PUBLIC_APP_ORIGIN = String(
   process.env.PUBLIC_APP_ORIGIN ||
   process.env.APP_PUBLIC_ORIGIN ||
   ''
 ).trim();
+
 const defaultAllowedOrigins = new Set([
   'http://localhost:3000',
   'http://localhost:5500',
   'http://127.0.0.1:3000',
   'http://127.0.0.1:5500'
 ]);
+
 if (PUBLIC_APP_ORIGIN) {
   defaultAllowedOrigins.add(PUBLIC_APP_ORIGIN);
 }
+
 const configuredOrigins = new Set(CORS_ORIGINS);
 
 app.use(express.json({ limit: JSON_BODY_LIMIT }));
@@ -324,6 +329,11 @@ registerCatalogosRoutes(app, { getPool: () => pool });
 registerSystemRoutes(app, { getPool: () => pool, sql });
 
 // ==========================================
+// HORARIOS DEL PERSONAL
+// ==========================================
+registerHorariosRoutes(app, { getPool: () => pool, sql });
+
+// ==========================================
 // FRONTEND (RUTAS WEB + ARCHIVOS ESTATICOS)
 // ==========================================
 app.use('/css', express.static(path.join(frontendRootDir, 'css')));
@@ -377,6 +387,7 @@ const pageFileBySlug = {
   papeletas: path.join(frontendRootDir, 'HTML', 'permisos.html'),
   permisos: path.join(frontendRootDir, 'HTML', 'permisos.html'),
   trabajadores: path.join(frontendRootDir, 'HTML', 'trabajadores.html'),
+  horarios: path.join(frontendRootDir, 'HTML', 'horarios.html'),
   perfil: path.join(frontendRootDir, 'HTML', 'perfil.html'),
   reportes: path.join(frontendRootDir, 'HTML', 'reporte.html'),
   reporte: path.join(frontendRootDir, 'HTML', 'reporte.html'),
@@ -405,6 +416,7 @@ app.get('/HTML/:file', (req, res, next) => {
     'dashboard.html': '/dashboard',
     'permisos.html': '/papeletas',
     'trabajadores.html': '/trabajadores',
+    'horarios.html': '/horarios',
     'perfil.html': '/perfil',
     'reporte.html': '/reportes',
     'formulario-papeleta.html': '/nueva-papeleta'

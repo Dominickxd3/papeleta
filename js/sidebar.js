@@ -220,6 +220,37 @@
     }
   }
 
+  // Horarios: ADMIN / RRHH ven a todo el personal; los jefes (sw_nivel 2)
+  // solo a su gente. El backend aplica el filtro; aquí solo se muestra el menú.
+  function canAccessHorarios(u, role) {
+    const nivel = Number(u?.sw_nivel || u?.SwNivel || 0) || 0;
+    return canAccessTrabajadores(role) || nivel >= 2;
+  }
+
+  function applyHorariosVisibility(u, role) {
+    const menu = document.querySelector('.sb-menu');
+    let item = document.getElementById('mHorarios');
+    if (!canAccessHorarios(u, role)) {
+      if (item) item.style.display = 'none';
+      return;
+    }
+    if (!item && menu) {
+      item = document.createElement('a');
+      item.href = 'horarios.html';
+      item.className = 'sb-item';
+      item.id = 'mHorarios';
+      item.innerHTML = '<i class="fa-solid fa-clock"></i><span>Horarios</span>';
+      const after = document.getElementById('mPermisos');
+      if (after && after.parentNode === menu) after.insertAdjacentElement('afterend', item);
+      else menu.appendChild(item);
+    }
+    if (item) {
+      item.style.display = '';
+      const path = (location.pathname || '').toLowerCase();
+      if (path.endsWith('/horarios') || path.endsWith('/horarios.html')) item.classList.add('active');
+    }
+  }
+
   function applyUserToSidebar(u) {
     if (!u || typeof u !== 'object') {
       hideDisabledMenuItems();
@@ -235,6 +266,7 @@
     hideDisabledMenuItems();
     applyTrabajadoresVisibility(role);
     applyAdministrarVisibility(role);
+    applyHorariosVisibility(u, role);
     hideReportes();
     renderSidebarAvatar(photoUrl);
     if (document.getElementById('sbUserName')) document.getElementById('sbUserName').textContent = name;
