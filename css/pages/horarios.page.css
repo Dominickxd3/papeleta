@@ -254,6 +254,9 @@ body.dark .hr-avatar { background: rgba(255, 255, 255, .08); color: #94a3b8; }
 .hr-link i { font-size: .7rem; margin-left: 4px; }
 .hr-txt-warn { color: var(--hr-warn); font-weight: 600; }
 .hr-txt-bad { color: var(--hr-bad); font-weight: 600; }
+.hr-txt-ok { color: var(--hr-ok); font-weight: 600; }
+.hr-stat.is-ok .hr-stat__main { color: var(--hr-ok); }
+.hr-stat.is-bad-main .hr-stat__main { color: var(--hr-bad); }
 
 /* ---------- Paginacion ---------- */
 .hr-pager {
@@ -331,7 +334,7 @@ body.dark .hr-drawer {
 .hr-icon-btn:hover { color: var(--hr-text); border-color: var(--hr-faint); }
 .hr-drawer__periodo { margin: 0; padding: 0 24px 14px 80px; color: var(--hr-muted); font-size: .85rem; }
 .hr-drawer__stats {
-  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px;
   padding: 0 24px 16px;
 }
 .hr-mini {

@@ -91,6 +91,29 @@
   const tienePapeleta = (r) => num(r.CantidadPapeletas) > 0;
   const saleAntes = (r) => num(r.MinutosSalidaAntes) > 0 && num(r.CantidadMarcas) > 1;
 
+  const aMinutos = (hhmm) => {
+    const m = /^(\d{1,2}):(\d{2})/.exec(hora(hhmm));
+    return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+  };
+
+  // Tiempo extra: minutos que se quedo despues de su hora de salida programada.
+  function minutosExtra(r) {
+    if (num(r.CantidadMarcas) < 2) return 0;
+    const ultima = aMinutos(r.UltimaMarca);
+    const salida = aMinutos(r.HoraSalidaProgramada);
+    const entrada = aMinutos(r.HoraEntradaProgramada);
+    if (ultima === null || salida === null) return 0;
+    if (entrada !== null && salida <= entrada) return 0; // turnos que cruzan medianoche: no se calcula
+    return Math.max(0, ultima - salida);
+  }
+  const tieneExtra = (r) => minutosExtra(r) > 0;
+
+  function balanceTexto(min) {
+    if (min > 0) return { texto: `+${minutosTexto(min)}`, detalle: 'a favor del trabajador', tono: 'is-ok' };
+    if (min < 0) return { texto: `−${minutosTexto(-min)}`, detalle: 'en contra (debe tiempo)', tono: 'is-bad-main' };
+    return { texto: '0 min', detalle: 'sin saldo', tono: '' };
+  }
+
   function filasFiltradas() {
     const texto = String($('hrBuscar').value || '').trim().toUpperCase();
     const area = $('hrArea').value;
@@ -102,6 +125,7 @@
       if (filtro === 'sinmarca' && !esSinMarca(r)) return false;
       if (filtro === 'papeleta' && !tienePapeleta(r)) return false;
       if (filtro === 'salida' && !saleAntes(r)) return false;
+      if (filtro === 'extra' && !tieneExtra(r)) return false;
       return true;
     });
   }
@@ -149,8 +173,11 @@
     if (esSinMarca(r)) return nota('Sin marca');
     if (num(r.CantidadMarcas) < 2) return nota(esHoy(r) ? 'Pendiente' : 'Sin marca');
     const clase = saleAntes(r) ? 'late' : '';
-    const antes = saleAntes(r) ? `<div class="hr-sub">${minutosTexto(r.MinutosSalidaAntes)} antes</div>` : '';
-    return `<span class="hr-time ${clase}" title="${marcasTitulo(r)}">${esc(hora(r.UltimaMarca))}</span>${antes}`;
+    const extra = minutosExtra(r);
+    const sub = saleAntes(r)
+      ? `<div class="hr-sub">${minutosTexto(r.MinutosSalidaAntes)} antes</div>`
+      : extra ? `<div class="hr-sub hr-txt-ok">+${minutosTexto(extra)} extra</div>` : '';
+    return `<span class="hr-time ${clase}" title="${marcasTitulo(r)}">${esc(hora(r.UltimaMarca))}</span>${sub}`;
   }
 
   function celdaTardanza(r) {
@@ -238,18 +265,24 @@
       if (!map.has(r.DNI)) {
         map.set(r.DNI, {
           Trabajador: r.Trabajador, DNI: r.DNI, Cargo: r.Cargo,
-          conMarca: 0, sinMarca: 0, diasTarde: 0, minTarde: 0, salidas: 0, minSalidas: 0, papeletas: 0, horas: 0
+          conMarca: 0, sinMarca: 0, diasTarde: 0, minTarde: 0, salidas: 0, minSalidas: 0,
+          diasExtra: 0, minExtra: 0, papeletas: 0, horas: 0
         });
       }
       const s = map.get(r.DNI);
       if (esSinMarca(r)) s.sinMarca += 1; else s.conMarca += 1;
       if (esTarde(r)) { s.diasTarde += 1; s.minTarde += num(r.MinutosTarde); }
       if (saleAntes(r)) { s.salidas += 1; s.minSalidas += num(r.MinutosSalidaAntes); }
+      const extra = minutosExtra(r);
+      if (extra) { s.diasExtra += 1; s.minExtra += extra; }
       s.papeletas += num(r.CantidadPapeletas);
       s.horas += num(r.HorasPermiso);
     });
     const lista = [...map.values()];
-    lista.forEach((s) => { s.asistencia = s.conMarca / Math.max(1, s.conMarca + s.sinMarca); });
+    lista.forEach((s) => {
+      s.asistencia = s.conMarca / Math.max(1, s.conMarca + s.sinMarca);
+      s.balance = s.minExtra - s.minTarde - s.minSalidas;
+    });
 
     const { campo, dir } = state.orden;
     const signo = dir === 'asc' ? 1 : -1;
@@ -274,7 +307,7 @@
     });
     if (!resumen.length) {
       $('hrPager').hidden = true;
-      tbody.innerHTML = '<tr><td colspan="6" class="hr-empty"><i class="fa-regular fa-user"></i>No hay registros para este filtro.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="hr-empty"><i class="fa-regular fa-user"></i>No hay registros para este filtro.</td></tr>';
       return;
     }
     tbody.innerHTML = paginar(resumen).map((s) => {
@@ -285,6 +318,8 @@
           <td data-label="Asistencia">${b.asistencia}</td>
           <td data-label="Tardanzas">${b.tardanzas}</td>
           <td data-label="Salidas antes de hora">${b.salidas}</td>
+          <td data-label="Tiempo extra">${b.extra}</td>
+          <td data-label="Balance de horas">${b.balance}</td>
           <td data-label="Papeletas">${b.papeletas}</td>
           <td class="hr-col-action"><span class="hr-link">Ver detalle <i class="fa-solid fa-chevron-right"></i></span></td>
         </tr>`;
@@ -306,6 +341,13 @@
       salidas: !s.conMarca ? sinRegistros : s.salidas
         ? bloque(plural(s.salidas, 'vez', 'veces'), `${minutosTexto(s.minSalidas)} antes de hora`)
         : bloque(nota('Ninguna'), ''),
+      extra: !s.conMarca ? sinRegistros : s.diasExtra
+        ? bloque(`+${minutosTexto(s.minExtra)}`, `en ${plural(s.diasExtra, 'día', 'días')}`, 'is-ok')
+        : bloque(nota('Sin tiempo extra'), ''),
+      balance: !s.conMarca ? sinRegistros : (() => {
+        const bt = balanceTexto(s.balance);
+        return bloque(bt.texto, bt.detalle, bt.tono);
+      })(),
       papeletas: s.papeletas
         ? bloque(plural(s.papeletas, 'papeleta', 'papeletas'), `${numero(s.horas, 2)} h de permiso`)
         : bloque(nota('Sin papeletas'), '')
@@ -319,6 +361,8 @@
     else if (num(r.CantidadMarcas) < 2 && !esHoy(r)) partes.push('<span class="hr-txt-warn">No marcó salida</span>');
     if (esTarde(r)) partes.push(`<span class="hr-txt-warn">Llegó ${minutosTexto(r.MinutosTarde)} tarde</span>`);
     if (saleAntes(r)) partes.push(`<span class="hr-txt-warn">Salió ${minutosTexto(r.MinutosSalidaAntes)} antes</span>`);
+    const extra = minutosExtra(r);
+    if (extra) partes.push(`<span class="hr-txt-ok">Se quedó ${minutosTexto(extra)} más (tiempo extra)</span>`);
     if (tienePapeleta(r)) {
       const motivo = tipoOracion(r.MotivoPermiso);
       partes.push(`<span><i class="fa-regular fa-file-lines"></i> N° ${esc(r.NumeroPapeleta)} · ${esc(r.TipoPermiso || 'Papeleta')} · ${esc(r.HorarioPermiso)} (${numero(r.HorasPermiso, 2)} h)${motivo ? ` · ${esc(motivo)}` : ''}</span>`);
@@ -345,6 +389,8 @@
       <div class="hr-mini"><span>Asistencia</span>${b.asistencia}</div>
       <div class="hr-mini"><span>Tardanzas</span>${b.tardanzas}</div>
       <div class="hr-mini"><span>Salidas antes</span>${b.salidas}</div>
+      <div class="hr-mini"><span>Tiempo extra</span>${b.extra}</div>
+      <div class="hr-mini"><span>Balance de horas</span>${b.balance}</div>
       <div class="hr-mini"><span>Papeletas</span>${b.papeletas}</div>`;
 
     const f = state.panel.filtro;
@@ -353,6 +399,7 @@
       tarde: dias.filter(esTarde).length,
       sinmarca: dias.filter(esSinMarca).length,
       salida: dias.filter(saleAntes).length,
+      extra: dias.filter(tieneExtra).length,
       papeleta: dias.filter(tienePapeleta).length
     };
     document.querySelectorAll('#hrDrawerFiltros .hr-chip').forEach((c) => {
@@ -364,6 +411,7 @@
       if (f === 'tarde') return esTarde(r);
       if (f === 'sinmarca') return esSinMarca(r);
       if (f === 'salida') return saleAntes(r);
+      if (f === 'extra') return tieneExtra(r);
       if (f === 'papeleta') return tienePapeleta(r);
       return true;
     });
@@ -414,7 +462,7 @@
 
   function mostrarMensaje(html) {
     const tabla = state.vista === 'detalle' ? $('hrTablaDetalle') : $('hrTablaResumen');
-    const cols = state.vista === 'detalle' ? 8 : 6;
+    const cols = 8;
     tabla.querySelector('tbody').innerHTML = `<tr><td colspan="${cols}" class="hr-empty">${html}</td></tr>`;
   }
 
