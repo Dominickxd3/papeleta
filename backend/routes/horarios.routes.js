@@ -100,45 +100,25 @@ function registerHorariosRoutes(app, deps) {
         return res.json({ success: true, desde: isoDate(desde), hasta: isoDate(hasta), areas: [], data: [] });
       }
 
-      const reqDb = getPool().request()
+      // Todo el personal activo de SIGA (todas las areas) para el rango pedido.
+      const result = await getPool().request()
         .input('Desde', sql.Date, isoDate(desde))
-        .input('Hasta', sql.Date, isoDate(hasta));
+        .input('Hasta', sql.Date, isoDate(hasta))
+        .execute('dbo.sp_Web_HorarioPersonal');
 
-      let areaSql = '';
+      let data = result.recordset || [];
       if (!acceso.todos) {
-        const params = acceso.areas.map((areaName, idx) => {
-          reqDb.input(`Area${idx}`, sql.NVarChar(150), areaName);
-          return `@Area${idx}`;
-        });
-        areaSql = `AND H.AreaERP IN (${params.join(', ')})`;
+        // Jefes: solo los trabajadores de sus areas asignadas.
+        const permitidas = new Set(acceso.areas.map((a) => a.toUpperCase()));
+        data = data.filter((r) => permitidas.has(String(r.AreaERP || '').trim().toUpperCase()));
       }
-
-      const result = await reqDb.query(`
-        SELECT
-          H.AreaERP, H.Seccion, H.DNI, H.Trabajador, H.Cargo,
-          CONVERT(char(10), H.Fecha, 23) AS Fecha,
-          H.DiaSemana, H.Turno,
-          H.HoraEntradaProgramada, H.HoraSalidaProgramada,
-          H.PrimeraMarca, H.UltimaMarca,
-          H.Marca1, H.Marca2, H.Marca3, H.Marca4, H.CantidadMarcas,
-          H.LugarEntrada, H.LugarSalida, H.MarcasManuales,
-          H.MinutosTarde, H.MinutosSalidaAntes, H.HorasEntreMarcas,
-          H.SinMarcas, H.Feriado,
-          H.CantidadPapeletas, H.NumeroPapeleta, H.TipoPermiso,
-          H.HorarioPermiso, H.MotivoPermiso, H.HorasPermiso
-        FROM dbo.vw_Web_Horario_Personal H
-        WHERE H.Fecha >= @Desde
-          AND H.Fecha < DATEADD(day, 1, CAST(@Hasta AS datetime))
-          ${areaSql}
-        ORDER BY H.Fecha DESC, H.Trabajador
-      `);
 
       return res.json({
         success: true,
         desde: isoDate(desde),
         hasta: isoDate(hasta),
         areas: acceso.todos ? null : acceso.areas,
-        data: result.recordset || []
+        data
       });
     } catch (error) {
       console.error('Error consultando horarios:', error);
