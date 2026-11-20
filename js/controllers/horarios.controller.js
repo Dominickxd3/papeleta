@@ -504,14 +504,8 @@
   // ---------- render general ----------
   function render() {
     const rows = filasFiltradas();
-    const trabajadores = new Set(rows.map((r) => r.DNI)).size;
-    if (state.vista === 'detalle') {
-      renderDetalle(rows);
-      $('hrResumenTexto').textContent = `${plural(trabajadores, 'trabajador', 'trabajadores')} · ${plural(rows.length, 'registro', 'registros')}`;
-    } else {
-      renderResumen(rows);
-      $('hrResumenTexto').textContent = plural(trabajadores, 'trabajador', 'trabajadores');
-    }
+    if (state.vista === 'detalle') renderDetalle(rows);
+    else renderResumen(rows);
   }
 
   function mostrarMensaje(html) {
