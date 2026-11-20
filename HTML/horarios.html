@@ -138,6 +138,9 @@
           </div>
         </div>
         <div class="hr-head__actions">
+          <button id="btnHrExportar" class="hr-btn" type="button" title="Descarga el resumen y el detalle de lo que ves en pantalla">
+            <i class="fa-solid fa-file-excel"></i><span>Exportar Excel</span>
+          </button>
           <button id="btnHrActualizar" class="hr-btn" type="button">
             <i class="fa-solid fa-rotate"></i><span>Actualizar</span>
           </button>
@@ -165,7 +168,6 @@
             <option value="papeleta">Con papeleta</option>
             <option value="salida">Salida antes de hora</option>
             <option value="extra">Con tiempo extra</option>
-            <option value="vacaciones">De vacaciones</option>
           </select>
         </div>
       </div>
@@ -252,7 +254,6 @@
       <button type="button" class="hr-chip" data-f="salida" data-label="Salidas antes">Salidas antes</button>
       <button type="button" class="hr-chip" data-f="extra" data-label="Tiempo extra">Tiempo extra</button>
       <button type="button" class="hr-chip" data-f="papeleta" data-label="Papeletas">Papeletas</button>
-      <button type="button" class="hr-chip" data-f="vacaciones" data-label="Vacaciones">Vacaciones</button>
     </div>
     <div class="hr-drawer__body">
       <table class="hr-table hr-table--drawer">
@@ -263,12 +264,58 @@
             <th class="center">Entrada</th>
             <th class="center">Salida</th>
             <th>Detalle</th>
+            <th class="hr-col-action" id="hrDrawerColAccion" hidden></th>
           </tr>
         </thead>
         <tbody id="hrDrawerTabla"></tbody>
       </table>
     </div>
   </aside>
+
+  <!-- Ajuste manual de un dia (solo ADMIN / RRHH) -->
+  <div class="hr-modal-overlay" id="hrAjOverlay" hidden></div>
+  <div class="hr-modal" id="hrAjModal" role="dialog" aria-modal="true" aria-labelledby="hrAjTitulo" hidden>
+    <form id="hrAjForm" novalidate>
+      <header class="hr-modal__head">
+        <div>
+          <h2 id="hrAjTitulo">Ajustar día</h2>
+          <p class="hr-sub" id="hrAjSub"></p>
+        </div>
+        <button type="button" class="hr-icon-btn" id="hrAjCerrar" aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+      </header>
+
+      <div class="hr-modal__body">
+        <fieldset class="hr-aj-group">
+          <legend>Qué no debe contar este día</legend>
+          <label class="hr-check"><input type="checkbox" id="hrAjFalta"><span><b>Falta</b><small>No vino, pero está justificado.</small></span></label>
+          <label class="hr-check"><input type="checkbox" id="hrAjTardanza"><span><b>Tardanza</b><small>No se descuenta lo que llegó tarde.</small></span></label>
+          <label class="hr-check"><input type="checkbox" id="hrAjSalida"><span><b>Salida antes de hora</b><small>No se descuenta lo que salió antes.</small></span></label>
+          <label class="hr-check"><input type="checkbox" id="hrAjExtra"><span><b>Tiempo extra</b><small>El tiempo que se quedó no suma a favor.</small></span></label>
+        </fieldset>
+
+        <fieldset class="hr-aj-group">
+          <legend>Horario correcto de ese día <small>(opcional, si el de SIGA no concuerda)</small></legend>
+          <div class="hr-aj-horas">
+            <label class="hr-field"><span>Entrada</span><input type="time" id="hrAjEntrada"></label>
+            <label class="hr-field"><span>Salida</span><input type="time" id="hrAjSalidaHora"></label>
+          </div>
+        </fieldset>
+
+        <label class="hr-field hr-aj-motivo">
+          <span>Motivo <b class="hr-txt-bad">*</b></span>
+          <textarea id="hrAjMotivo" rows="3" maxlength="300" placeholder="Ej.: Comisión de servicio autorizada por gerencia"></textarea>
+        </label>
+        <p class="hr-aj-error" id="hrAjError" role="alert" hidden></p>
+      </div>
+
+      <footer class="hr-modal__foot">
+        <button type="button" class="hr-btn hr-btn--danger" id="hrAjQuitar" hidden><i class="fa-solid fa-rotate-left"></i> Quitar ajuste</button>
+        <span class="hr-spacer"></span>
+        <button type="button" class="hr-btn" id="hrAjCancelar">Cancelar</button>
+        <button type="submit" class="hr-btn hr-btn--primary" id="hrAjGuardar"><i class="fa-solid fa-check"></i> Guardar ajuste</button>
+      </footer>
+    </form>
+  </div>
 
   <script src="../js/api/api-client.js"></script>
   <script src="../js/api/auth.api.js"></script>

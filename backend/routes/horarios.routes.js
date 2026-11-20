@@ -1,4 +1,5 @@
 const { normalizeRole } = require('../middlewares/auth');
+const { createActivityService, getClientIp } = require('../services/activity.service');
 
 // Horario del personal: horario programado (SIGA), marcas del reloj y papeletas del dia.
 // ADMIN / RRHH (o sw_nivel >= 3) ven a todos.
@@ -32,6 +33,7 @@ function isoDate(d) {
 function registerHorariosRoutes(app, deps) {
   const { sql } = deps;
   const getPool = deps.getPool || (() => deps.pool);
+  const { registrarAuditoria } = createActivityService(sql);
 
   async function resolverAcceso(user) {
     const role = normalizeRole(user?.rol || user?.Rol || user?.role || '');
@@ -113,16 +115,221 @@ function registerHorariosRoutes(app, deps) {
         data = data.filter((r) => permitidas.has(String(r.AreaERP || '').trim().toUpperCase()));
       }
 
+      await aplicarAjustes(data, isoDate(desde), isoDate(hasta));
+
       return res.json({
         success: true,
         desde: isoDate(desde),
         hasta: isoDate(hasta),
         areas: acceso.todos ? null : acceso.areas,
+        puedeAjustar: acceso.todos === true && esGestor(req.user, acceso),
         data
       });
     } catch (error) {
       console.error('Error consultando horarios:', error);
       return res.status(500).json({ success: false, message: 'No se pudo consultar el horario del personal' });
+    }
+  });
+
+  // ==========================================================
+  // AJUSTES MANUALES (solo ADMIN / RRHH)
+  // ==========================================================
+  function esGestor(user, acceso) {
+    const role = normalizeRole(user?.rol || user?.Rol || user?.role || '');
+    return PRIVILEGED_ROLES.has(role) || (Number(user?.sw_nivel || 0) >= 3) || acceso?.nivelGestor === true;
+  }
+
+  const aMin = (hhmm) => {
+    const m = /^(\d{1,2}):(\d{2})/.exec(String(hhmm || '').trim());
+    return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+  };
+
+  // Aplica los ajustes activos a las filas: cambia el horario del dia y
+  // anula tardanza / salida antes; la falta y el tiempo extra los resuelve
+  // la pantalla con los indicadores del ajuste.
+  async function aplicarAjustes(data, desde, hasta) {
+    if (!data.length) return;
+    const result = await getPool().request()
+      .input('Desde', sql.Date, desde)
+      .input('Hasta', sql.Date, hasta)
+      .query(`
+        SELECT IdAjuste, LTRIM(RTRIM(DNI)) AS DNI, CONVERT(char(10), Fecha, 23) AS Fecha,
+               NoContarFalta, NoContarTardanza, NoContarSalida, NoContarExtra,
+               HoraEntrada, HoraSalida, Motivo, UsuarioRegistro, FechaRegistro, UsuarioModifica, FechaModifica
+        FROM dbo.TBL_GGHH_HorarioAjuste
+        WHERE Activo = 1 AND Fecha >= @Desde AND Fecha <= @Hasta
+      `);
+    const ajustes = new Map((result.recordset || []).map((a) => [`${a.DNI}|${a.Fecha}`, a]));
+    if (!ajustes.size) return;
+
+    data.forEach((r) => {
+      const a = ajustes.get(`${String(r.DNI || '').trim()}|${r.Fecha}`);
+      if (!a) return;
+      r.Ajuste = {
+        IdAjuste: a.IdAjuste,
+        NoContarFalta: !!a.NoContarFalta,
+        NoContarTardanza: !!a.NoContarTardanza,
+        NoContarSalida: !!a.NoContarSalida,
+        NoContarExtra: !!a.NoContarExtra,
+        HoraEntrada: a.HoraEntrada ? a.HoraEntrada.trim() : null,
+        HoraSalida: a.HoraSalida ? a.HoraSalida.trim() : null,
+        Motivo: a.Motivo,
+        Usuario: a.UsuarioModifica || a.UsuarioRegistro,
+        Fecha: a.FechaModifica || a.FechaRegistro,
+        HorarioOriginal: `${(r.HoraEntradaProgramada || '').trim()}-${(r.HoraSalidaProgramada || '').trim()}`
+      };
+
+      // Horario corregido: recalcular tardanza y salida antes
+      if (a.HoraEntrada) r.HoraEntradaProgramada = a.HoraEntrada.trim();
+      if (a.HoraSalida) r.HoraSalidaProgramada = a.HoraSalida.trim();
+      if (a.HoraEntrada || a.HoraSalida) {
+        const E = aMin(r.HoraEntradaProgramada);
+        const S = aMin(r.HoraSalidaProgramada);
+        const P = aMin(r.PrimeraMarca);
+        const U = Number(r.CantidadMarcas) > 1 ? aMin(r.UltimaMarca) : null;
+        r.MinutosTarde = E !== null && P !== null ? Math.max(0, P - E) : 0;
+        r.MinutosSalidaAntes = S !== null && U !== null && (E === null || S > E) ? Math.max(0, S - U) : 0;
+      }
+      if (a.NoContarTardanza) r.MinutosTarde = 0;
+      if (a.NoContarSalida) r.MinutosSalidaAntes = 0;
+    });
+  }
+
+  async function exigirGestor(req, res) {
+    const acceso = await resolverAcceso(req.user);
+    if (acceso.denegado || !acceso.todos || !esGestor(req.user, acceso)) {
+      res.status(403).json({ success: false, message: 'Solo ADMIN o RRHH pueden ajustar horarios' });
+      return false;
+    }
+    return true;
+  }
+
+  function usuarioActual(req) {
+    return String(req.user?.usuario || req.user?.Usuario || 'sistema').trim().slice(0, 80);
+  }
+
+  async function auditar(req, accion, idRegistro, anterior, nuevo, observacion) {
+    try {
+      await registrarAuditoria(() => getPool().request(), {
+        tabla: 'TBL_GGHH_HorarioAjuste',
+        idRegistro,
+        accion,
+        usuario: usuarioActual(req),
+        nombreUsuario: String(req.user?.nombre || '').slice(0, 100) || null,
+        ip: getClientIp(req),
+        navegador: String(req.headers['user-agent'] || '').slice(0, 255),
+        datosAnteriores: anterior ? JSON.stringify(anterior) : null,
+        datosNuevos: nuevo ? JSON.stringify(nuevo) : null,
+        observaciones: observacion ? String(observacion).slice(0, 500) : null
+      });
+    } catch (e) {
+      console.warn('No se pudo registrar auditoria de ajuste:', e?.message || e);
+    }
+  }
+
+  // Crear o actualizar el ajuste de un trabajador en un dia
+  app.post('/api/horarios/ajustes', async (req, res) => {
+    try {
+      if (!(await exigirGestor(req, res))) return;
+      const b = req.body || {};
+      const dni = String(b.dni || '').trim();
+      const fecha = parseFecha(b.fecha);
+      const motivo = String(b.motivo || '').trim();
+      const horaOk = (h) => h === '' || h === null || h === undefined || /^([01]\d|2[0-3]):[0-5]\d$/.test(String(h));
+      const horaEntrada = b.horaEntrada ? String(b.horaEntrada).trim() : null;
+      const horaSalida = b.horaSalida ? String(b.horaSalida).trim() : null;
+      const flags = {
+        falta: !!b.noContarFalta,
+        tardanza: !!b.noContarTardanza,
+        salida: !!b.noContarSalida,
+        extra: !!b.noContarExtra
+      };
+
+      if (!/^\d{6,15}$/.test(dni)) return res.status(400).json({ success: false, message: 'DNI inválido' });
+      if (!fecha) return res.status(400).json({ success: false, message: 'Fecha inválida' });
+      if (motivo.length < 5) return res.status(400).json({ success: false, message: 'Escribe el motivo del ajuste (mínimo 5 caracteres)' });
+      if (motivo.length > 300) return res.status(400).json({ success: false, message: 'El motivo no puede pasar de 300 caracteres' });
+      if (!horaOk(horaEntrada) || !horaOk(horaSalida)) return res.status(400).json({ success: false, message: 'Hora inválida (usa HH:MM)' });
+      if (horaEntrada && horaSalida && aMin(horaSalida) <= aMin(horaEntrada)) {
+        return res.status(400).json({ success: false, message: 'La hora de salida debe ser mayor que la de entrada' });
+      }
+      if (!flags.falta && !flags.tardanza && !flags.salida && !flags.extra && !horaEntrada && !horaSalida) {
+        return res.status(400).json({ success: false, message: 'Elige al menos un ajuste' });
+      }
+
+      const existe = await getPool().request()
+        .input('DOI', sql.VarChar(20), dni)
+        .query(`SELECT TOP 1 1 AS ok FROM dbo.TBL_GGHH_TrabajadorCache WHERE LTRIM(RTRIM(DOI)) = @DOI`);
+      if (!existe.recordset?.length) return res.status(404).json({ success: false, message: 'Trabajador no encontrado' });
+
+      const usuario = usuarioActual(req);
+      const reqDb = () => getPool().request()
+        .input('DNI', sql.VarChar(20), dni)
+        .input('Fecha', sql.Date, isoDate(fecha))
+        .input('Falta', sql.Bit, flags.falta)
+        .input('Tardanza', sql.Bit, flags.tardanza)
+        .input('Salida', sql.Bit, flags.salida)
+        .input('Extra', sql.Bit, flags.extra)
+        .input('HoraEntrada', sql.Char(5), horaEntrada)
+        .input('HoraSalida', sql.Char(5), horaSalida)
+        .input('Motivo', sql.NVarChar(300), motivo)
+        .input('Usuario', sql.VarChar(80), usuario);
+
+      const previo = await getPool().request()
+        .input('DNI', sql.VarChar(20), dni)
+        .input('Fecha', sql.Date, isoDate(fecha))
+        .query(`SELECT TOP 1 * FROM dbo.TBL_GGHH_HorarioAjuste WHERE DNI = @DNI AND Fecha = @Fecha AND Activo = 1`);
+      const anterior = previo.recordset?.[0] || null;
+
+      let id;
+      if (anterior) {
+        await reqDb().input('Id', sql.Int, anterior.IdAjuste).query(`
+          UPDATE dbo.TBL_GGHH_HorarioAjuste
+             SET NoContarFalta = @Falta, NoContarTardanza = @Tardanza, NoContarSalida = @Salida, NoContarExtra = @Extra,
+                 HoraEntrada = @HoraEntrada, HoraSalida = @HoraSalida, Motivo = @Motivo,
+                 UsuarioModifica = @Usuario, FechaModifica = GETDATE()
+           WHERE IdAjuste = @Id`);
+        id = anterior.IdAjuste;
+      } else {
+        const ins = await reqDb().query(`
+          INSERT INTO dbo.TBL_GGHH_HorarioAjuste
+            (DNI, Fecha, NoContarFalta, NoContarTardanza, NoContarSalida, NoContarExtra, HoraEntrada, HoraSalida, Motivo, UsuarioRegistro)
+          OUTPUT INSERTED.IdAjuste
+          VALUES (@DNI, @Fecha, @Falta, @Tardanza, @Salida, @Extra, @HoraEntrada, @HoraSalida, @Motivo, @Usuario)`);
+        id = ins.recordset?.[0]?.IdAjuste;
+      }
+
+      const nuevo = { dni, fecha: isoDate(fecha), ...flags, horaEntrada, horaSalida, motivo };
+      await auditar(req, anterior ? 'EDITAR' : 'CREAR', id, anterior, nuevo, motivo);
+      return res.json({ success: true, idAjuste: id, message: anterior ? 'Ajuste actualizado' : 'Ajuste registrado' });
+    } catch (error) {
+      console.error('Error guardando ajuste de horario:', error);
+      return res.status(500).json({ success: false, message: 'No se pudo guardar el ajuste' });
+    }
+  });
+
+  // Anular un ajuste (no se borra: queda con Activo = 0)
+  app.delete('/api/horarios/ajustes/:id', async (req, res) => {
+    try {
+      if (!(await exigirGestor(req, res))) return;
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ success: false, message: 'Id inválido' });
+
+      const previo = await getPool().request().input('Id', sql.Int, id)
+        .query(`SELECT TOP 1 * FROM dbo.TBL_GGHH_HorarioAjuste WHERE IdAjuste = @Id AND Activo = 1`);
+      const anterior = previo.recordset?.[0];
+      if (!anterior) return res.status(404).json({ success: false, message: 'Ajuste no encontrado' });
+
+      await getPool().request()
+        .input('Id', sql.Int, id)
+        .input('Usuario', sql.VarChar(80), usuarioActual(req))
+        .query(`UPDATE dbo.TBL_GGHH_HorarioAjuste SET Activo = 0, UsuarioModifica = @Usuario, FechaModifica = GETDATE() WHERE IdAjuste = @Id`);
+
+      await auditar(req, 'ANULAR', id, anterior, { activo: false }, 'Ajuste de horario anulado');
+      return res.json({ success: true, message: 'Ajuste quitado' });
+    } catch (error) {
+      console.error('Error anulando ajuste de horario:', error);
+      return res.status(500).json({ success: false, message: 'No se pudo quitar el ajuste' });
     }
   });
 }

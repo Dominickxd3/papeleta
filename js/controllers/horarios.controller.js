@@ -90,7 +90,9 @@
   // Un dia de vacaciones no cuenta como falta, tardanza, salida ni tiempo extra.
   const esVacaciones = (r) => r.Vacaciones === 'SI';
   const esTarde = (r) => !esVacaciones(r) && num(r.MinutosTarde) > 0;
-  const esSinMarca = (r) => !esVacaciones(r) && r.SinMarcas === 'SI';
+  // Ajuste manual (ADMIN / RRHH): falta justificada no cuenta como "sin marcas".
+  const faltaJustificada = (r) => !esVacaciones(r) && r.SinMarcas === 'SI' && !!(r.Ajuste && r.Ajuste.NoContarFalta);
+  const esSinMarca = (r) => !esVacaciones(r) && r.SinMarcas === 'SI' && !faltaJustificada(r);
   const tienePapeleta = (r) => num(r.CantidadPapeletas) > 0;
   const saleAntes = (r) => !esVacaciones(r) && num(r.MinutosSalidaAntes) > 0 && num(r.CantidadMarcas) > 1;
 
@@ -102,6 +104,7 @@
   // Tiempo extra: minutos que se quedo despues de su hora de salida programada.
   function minutosExtra(r) {
     if (esVacaciones(r) || num(r.CantidadMarcas) < 2) return 0;
+    if (r.Ajuste && r.Ajuste.NoContarExtra) return 0;
     const ultima = aMinutos(r.UltimaMarca);
     const salida = aMinutos(r.HoraSalidaProgramada);
     const entrada = aMinutos(r.HoraEntradaProgramada);
@@ -244,6 +247,7 @@
   // ---------- listado ----------
   function celdaEstado(r) {
     if (esVacaciones(r)) return pill('Vacaciones', 'vac');
+    if (faltaJustificada(r)) return pill('Justificado', 'vac');
     if (esSinMarca(r)) return pill('Sin marcas', 'bad');
     if (num(r.CantidadMarcas) < 2) return esHoy(r) ? pill('En turno', 'ok') : pill('Sin salida', 'warn');
     if (saleAntes(r)) return pill('Salió antes', 'warn');
@@ -259,6 +263,7 @@
 
   function celdaEntrada(r) {
     if (esVacaciones(r) && !num(r.CantidadMarcas)) return nota('Vacaciones');
+    if (faltaJustificada(r)) return nota('Justificado');
     if (esSinMarca(r)) return nota('Sin marca');
     const clase = esTarde(r) ? 'late' : (hora(r.HoraEntradaProgramada) ? 'ok' : '');
     return `<span class="hr-time ${clase}" title="${marcasTitulo(r)}">${esc(hora(r.PrimeraMarca || r.Marca1))}</span>`;
@@ -266,6 +271,7 @@
 
   function celdaSalida(r) {
     if (esVacaciones(r) && num(r.CantidadMarcas) < 2) return nota('Vacaciones');
+    if (faltaJustificada(r)) return nota('Justificado');
     if (esSinMarca(r)) return nota('Sin marca');
     if (num(r.CantidadMarcas) < 2) return nota(esHoy(r) ? 'Pendiente' : 'Sin marca');
     const clase = saleAntes(r) ? 'late' : '';
@@ -368,6 +374,7 @@
       }
       const s = map.get(r.DNI);
       if (esVacaciones(r)) s.vacaciones = (s.vacaciones || 0) + 1;
+      else if (faltaJustificada(r)) s.faltasJustificadas = (s.faltasJustificadas || 0) + 1;
       else if (esSinMarca(r)) s.sinMarca += 1;
       else s.conMarca += 1;
       const tarde = esTarde(r) ? num(r.MinutosTarde) : 0;
@@ -444,7 +451,8 @@
         : bloque(
           `${numero(s.conMarca)} de ${plural(total, 'día', 'días')}`,
           [s.sinMarca ? `${plural(s.sinMarca, 'día', 'días')} sin marcar` : 'Marcó todos los días',
-            s.vacaciones ? `${plural(s.vacaciones, 'día', 'días')} de vacaciones` : ''].filter(Boolean).join(' · '),
+            s.vacaciones ? `${plural(s.vacaciones, 'día', 'días')} de vacaciones` : '',
+            s.faltasJustificadas ? `${plural(s.faltasJustificadas, 'falta justificada', 'faltas justificadas')}` : ''].filter(Boolean).join(' · '),
           s.sinMarca ? 'is-bad' : ''
         ),
       tardanzas: !s.conMarca ? sinRegistros : s.diasTarde
@@ -512,7 +520,7 @@
         </div>
       </div>
       ${justificado}
-      <p class="hr-cuenta__pie">Asistencia ${numero(s.conMarca)} de ${plural(total, 'día', 'días')}${s.sinMarca ? ` · ${plural(s.sinMarca, 'día', 'días')} sin marcar` : ''}${s.vacaciones ? ` · ${plural(s.vacaciones, 'día', 'días')} de vacaciones (no cuentan)` : ''} ·${s.papeletas ? `${plural(s.papeletas, 'papeleta', 'papeletas')} (${numero(s.horas, 2)} h)` : 'Sin papeletas'}</p>`;
+      <p class="hr-cuenta__pie">Asistencia ${numero(s.conMarca)} de ${plural(total, 'día', 'días')}${s.sinMarca ? ` · ${plural(s.sinMarca, 'día', 'días')} sin marcar` : ''}${s.vacaciones ? ` · ${plural(s.vacaciones, 'día', 'días')} de vacaciones (no cuentan)` : ''}${s.faltasJustificadas ? ` · ${plural(s.faltasJustificadas, 'falta justificada', 'faltas justificadas')}` : ''} · ${s.papeletas ? `${plural(s.papeletas, 'papeleta', 'papeletas')} (${numero(s.horas, 2)} h)` : 'Sin papeletas'}</p>`;
   }
 
   // ---------- historial de un trabajador (panel lateral) ----------
@@ -524,7 +532,7 @@
       return partes.join('<br>');
     }
     if (esSinMarca(r)) partes.push('<span class="hr-txt-bad">No marcó</span>');
-    else if (num(r.CantidadMarcas) < 2 && !esHoy(r)) partes.push('<span class="hr-txt-warn">No marcó salida</span>');
+    else if (num(r.CantidadMarcas) < 2 && !esHoy(r) && !faltaJustificada(r)) partes.push('<span class="hr-txt-warn">No marcó salida</span>');
     const ev = evaluarDia(r);
     if (!tienePapeleta(r)) {
       if (esTarde(r)) partes.push(`<span class="hr-txt-warn">Llegó ${minutosTexto(r.MinutosTarde)} tarde</span>`);
@@ -547,8 +555,277 @@
       const motivo = tipoOracion(r.MotivoPermiso);
       partes.push(`<span><i class="fa-regular fa-file-lines"></i> N° ${esc(r.NumeroPapeleta)} · ${esc(r.TipoPermiso || 'Papeleta')} · ${esc(r.HorarioPermiso)} (${numero(r.HorasPermiso, 2)} h)${motivo ? ` · ${esc(motivo)}` : ''}</span>`);
     }
+    if (faltaJustificada(r)) partes.unshift('<span class="hr-txt-vac">Falta justificada</span>');
     if (!partes.length) partes.push(nota(esHoy(r) && num(r.CantidadMarcas) < 2 ? 'En turno' : 'Sin novedades'));
+    if (r.Ajuste) partes.push(notaAjuste(r.Ajuste));
     return partes.join('<br>');
+  }
+
+  // ---------- reporte Excel ----------
+  const EXCELJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js';
+
+  function cargarExcelJS() {
+    if (window.ExcelJS) return Promise.resolve(window.ExcelJS);
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = EXCELJS_URL;
+      s.onload = () => (window.ExcelJS ? resolve(window.ExcelJS) : reject(new Error('No se pudo cargar ExcelJS')));
+      s.onerror = () => reject(new Error('No se pudo cargar la librería de Excel. Revisa tu conexión.'));
+      document.head.appendChild(s);
+    });
+  }
+
+  function estadoTexto(r) {
+    if (esVacaciones(r)) return 'Vacaciones';
+    if (faltaJustificada(r)) return 'Falta justificada';
+    if (esSinMarca(r)) return 'Sin marcas';
+    if (num(r.CantidadMarcas) < 2) return esHoy(r) ? 'En turno' : 'Sin salida';
+    if (saleAntes(r)) return 'Salió antes';
+    return 'Asistió';
+  }
+
+  function saldoTexto(min) {
+    if (min > 0) return `Se le debe ${minutosTexto(min)}`;
+    if (min < 0) return `Le falta ${minutosTexto(-min)}`;
+    return 'Sin saldo';
+  }
+
+  function estilarHoja(ws) {
+    const head = ws.getRow(1);
+    head.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    head.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E3A8A' } };
+    head.alignment = { vertical: 'middle', wrapText: true };
+    head.height = 32;
+    ws.views = [{ state: 'frozen', ySplit: 1 }];
+    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: ws.columnCount } };
+  }
+
+  async function exportarExcel() {
+    const rows = filasFiltradas();
+    if (!rows.length) { alert('No hay datos para exportar con los filtros actuales.'); return; }
+    const btn = $('btnHrExportar');
+    btn.disabled = true;
+    try {
+      const ExcelJS = await cargarExcelJS();
+      const wb = new ExcelJS.Workbook();
+      wb.creator = 'Sistema de Papeletas GP';
+      wb.created = new Date();
+      const desde = fechaPartes($('hrDesde').value).corta;
+      const hasta = fechaPartes($('hrHasta').value).corta;
+
+      // Hoja 1: resumen por trabajador
+      const areaDe = new Map(rows.map((r) => [r.DNI, r.AreaERP || '']));
+      const lista = resumir(rows).sort((a, b) => String(a.Trabajador).localeCompare(String(b.Trabajador), 'es'));
+      const ws1 = wb.addWorksheet('Resumen');
+      ws1.columns = [
+        { header: 'Trabajador', key: 'trab', width: 36 },
+        { header: 'DNI', key: 'dni', width: 11 },
+        { header: 'Cargo', key: 'cargo', width: 30 },
+        { header: 'Área', key: 'area', width: 32 },
+        { header: 'Días trabajados', key: 'dias', width: 11 },
+        { header: 'Días sin marcar', key: 'sin', width: 11 },
+        { header: 'Faltas justificadas', key: 'fj', width: 12 },
+        { header: 'Días de vacaciones', key: 'vac', width: 12 },
+        { header: 'Días con tardanza', key: 'dt', width: 11 },
+        { header: 'Tardanza a descontar (min)', key: 'mt', width: 14 },
+        { header: 'Días con salida antes', key: 'ds', width: 11 },
+        { header: 'Salida antes a descontar (min)', key: 'ms', width: 14 },
+        { header: 'Tiempo extra (min)', key: 'ex', width: 12 },
+        { header: 'Justificado con papeleta (min)', key: 'ju', width: 14 },
+        { header: 'Saldo (min)', key: 'saldo', width: 11 },
+        { header: 'Saldo', key: 'saldoTxt', width: 24 },
+        { header: 'Papeletas', key: 'pap', width: 10 },
+        { header: 'Horas de permiso', key: 'hp', width: 11 }
+      ];
+      lista.forEach((s) => {
+        const row = ws1.addRow({
+          trab: s.Trabajador, dni: s.DNI, cargo: tipoTitulo(s.Cargo), area: areaDe.get(s.DNI),
+          dias: s.conMarca, sin: s.sinMarca, fj: s.faltasJustificadas || 0, vac: s.vacaciones || 0,
+          dt: s.diasTarde, mt: s.debeTarde, ds: s.salidas, ms: s.debeSalidas,
+          ex: s.minExtra, ju: s.justificado, saldo: s.balance, saldoTxt: saldoTexto(s.balance),
+          pap: s.papeletas, hp: Number(s.horas.toFixed(2))
+        });
+        const c = row.getCell('saldoTxt');
+        c.font = { bold: true, color: { argb: s.balance > 0 ? 'FF15803D' : s.balance < 0 ? 'FFDC2626' : 'FF334155' } };
+      });
+      estilarHoja(ws1);
+
+      // Hoja 2: detalle por dia
+      const ws2 = wb.addWorksheet('Detalle');
+      ws2.columns = [
+        { header: 'Fecha', key: 'fecha', width: 11 },
+        { header: 'Día', key: 'dia', width: 10 },
+        { header: 'Trabajador', key: 'trab', width: 36 },
+        { header: 'DNI', key: 'dni', width: 11 },
+        { header: 'Cargo', key: 'cargo', width: 28 },
+        { header: 'Área', key: 'area', width: 30 },
+        { header: 'Horario', key: 'horario', width: 14 },
+        { header: 'Entrada', key: 'ent', width: 9 },
+        { header: 'Salida', key: 'sal', width: 9 },
+        { header: 'Marcas del día', key: 'marcas', width: 30 },
+        { header: 'Estado', key: 'estado', width: 16 },
+        { header: 'Tardanza (min)', key: 'mt', width: 10 },
+        { header: 'Salida antes (min)', key: 'ms', width: 10 },
+        { header: 'Tiempo extra (min)', key: 'ex', width: 10 },
+        { header: 'A descontar (min)', key: 'desc', width: 11 },
+        { header: 'Papeleta N°', key: 'np', width: 12 },
+        { header: 'Tipo de permiso', key: 'tp', width: 18 },
+        { header: 'Horario del permiso', key: 'hp', width: 24 },
+        { header: 'Motivo', key: 'motivo', width: 34 },
+        { header: 'Horas de permiso', key: 'horas', width: 10 },
+        { header: 'Control de papeleta', key: 'control', width: 46 },
+        { header: 'Ajuste manual', key: 'ajuste', width: 40 }
+      ];
+      rows.forEach((r) => {
+        const f = fechaPartes(r.Fecha);
+        const ev = evaluarDia(r);
+        const marcas = [r.Marca1, r.Marca2, r.Marca3, r.Marca4, r.Marca5, r.Marca6, r.Marca7, r.Marca8].map(hora).filter(Boolean);
+        const a = r.Ajuste;
+        ws2.addRow({
+          fecha: f.corta, dia: f.dia, trab: r.Trabajador, dni: r.DNI, cargo: tipoTitulo(r.Cargo), area: r.AreaERP || '',
+          horario: hora(r.HoraEntradaProgramada) ? `${hora(r.HoraEntradaProgramada)} - ${hora(r.HoraSalidaProgramada)}` : '',
+          ent: esSinMarca(r) ? '' : hora(r.PrimeraMarca || r.Marca1),
+          sal: num(r.CantidadMarcas) > 1 ? hora(r.UltimaMarca) : '',
+          marcas: marcas.join(', '),
+          estado: estadoTexto(r),
+          mt: esTarde(r) ? num(r.MinutosTarde) : 0,
+          ms: saleAntes(r) ? num(r.MinutosSalidaAntes) : 0,
+          ex: minutosExtra(r),
+          desc: ev.tarde + ev.salida + ev.permiso,
+          np: tienePapeleta(r) ? r.NumeroPapeleta : '',
+          tp: tienePapeleta(r) ? r.TipoPermiso : '',
+          hp: tienePapeleta(r) ? r.HorarioPermiso : '',
+          motivo: tienePapeleta(r) ? tipoOracion(r.MotivoPermiso) : '',
+          horas: tienePapeleta(r) ? num(r.HorasPermiso) : '',
+          control: ev.notas.map((n) => `${n.ok ? 'OK' : 'REVISAR'}: ${n.txt}`).join(' | '),
+          ajuste: a ? `${a.Usuario}: ${a.Motivo}` : ''
+        });
+      });
+      estilarHoja(ws2);
+
+      const buffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Horarios_${desde.replace(/\//g, '-')}_al_${hasta.replace(/\//g, '-')}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    } catch (error) {
+      alert(error?.message || 'No se pudo generar el Excel.');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // ---------- ajustes manuales ----------
+  function notaAjuste(a) {
+    const que = [];
+    if (a.NoContarFalta) que.push('falta');
+    if (a.NoContarTardanza) que.push('tardanza');
+    if (a.NoContarSalida) que.push('salida antes');
+    if (a.NoContarExtra) que.push('tiempo extra');
+    const partes = [];
+    if (que.length) partes.push(`no cuenta: ${que.join(', ')}`);
+    if (a.HoraEntrada || a.HoraSalida) partes.push(`horario corregido ${a.HoraEntrada || '—'} – ${a.HoraSalida || '—'} (era ${a.HorarioOriginal.replace('-', ' – ')})`);
+    return `<span class="hr-ajuste" title="${esc(a.Motivo)}"><i class="fa-solid fa-pen"></i> Ajustado por ${esc(a.Usuario)}: ${esc(partes.join(' · '))}<br><em>${esc(a.Motivo)}</em></span>`;
+  }
+
+  let ajusteEnEdicion = null;
+
+  function abrirAjuste(dni, fecha) {
+    const r = state.rows.find((x) => x.DNI === dni && x.Fecha === fecha);
+    if (!r) return;
+    ajusteEnEdicion = r;
+    const a = r.Ajuste || {};
+    const f = fechaPartes(fecha);
+    const horario = a.HorarioOriginal || `${hora(r.HoraEntradaProgramada)}-${hora(r.HoraSalidaProgramada)}`;
+    const marcas = [r.Marca1, r.Marca2, r.Marca3, r.Marca4, r.Marca5, r.Marca6].map(hora).filter(Boolean);
+    $('hrAjTitulo').textContent = r.Ajuste ? 'Editar ajuste' : 'Ajustar día';
+    $('hrAjSub').textContent = `${r.Trabajador} · ${f.dia} ${f.corta} · Horario SIGA ${horario.replace('-', ' – ') || 'sin horario'} · Marcas: ${marcas.length ? marcas.join(', ') : 'ninguna'}`;
+    $('hrAjFalta').checked = !!a.NoContarFalta;
+    $('hrAjTardanza').checked = !!a.NoContarTardanza;
+    $('hrAjSalida').checked = !!a.NoContarSalida;
+    $('hrAjExtra').checked = !!a.NoContarExtra;
+    $('hrAjEntrada').value = a.HoraEntrada || '';
+    $('hrAjSalidaHora').value = a.HoraSalida || '';
+    $('hrAjMotivo').value = a.Motivo || '';
+    $('hrAjQuitar').hidden = !r.Ajuste;
+    $('hrAjError').hidden = true;
+    $('hrAjModal').hidden = false;
+    $('hrAjOverlay').hidden = false;
+    $('hrAjMotivo').focus();
+  }
+
+  function cerrarAjuste() {
+    ajusteEnEdicion = null;
+    $('hrAjModal').hidden = true;
+    $('hrAjOverlay').hidden = true;
+  }
+
+  function errorAjuste(msg) {
+    $('hrAjError').textContent = msg;
+    $('hrAjError').hidden = false;
+  }
+
+  async function guardarAjuste(e) {
+    e.preventDefault();
+    const r = ajusteEnEdicion;
+    if (!r) return;
+    const body = {
+      dni: r.DNI,
+      fecha: r.Fecha,
+      noContarFalta: $('hrAjFalta').checked,
+      noContarTardanza: $('hrAjTardanza').checked,
+      noContarSalida: $('hrAjSalida').checked,
+      noContarExtra: $('hrAjExtra').checked,
+      horaEntrada: $('hrAjEntrada').value || null,
+      horaSalida: $('hrAjSalidaHora').value || null,
+      motivo: $('hrAjMotivo').value.trim()
+    };
+    if (!body.noContarFalta && !body.noContarTardanza && !body.noContarSalida && !body.noContarExtra && !body.horaEntrada && !body.horaSalida) {
+      errorAjuste('Elige al menos una opción o corrige el horario.');
+      return;
+    }
+    if (body.motivo.length < 5) {
+      errorAjuste('Escribe el motivo del ajuste (mínimo 5 caracteres).');
+      $('hrAjMotivo').focus();
+      return;
+    }
+    $('hrAjGuardar').disabled = true;
+    try {
+      const response = await fetch(`${API_CONFIG.baseURL}/horarios/ajustes`, {
+        method: 'POST', headers: getAuthHeaders(), body: JSON.stringify(body)
+      });
+      await handleResponse(response);
+      cerrarAjuste();
+      await cargar(true);
+    } catch (error) {
+      errorAjuste(error?.message || 'No se pudo guardar el ajuste.');
+    } finally {
+      $('hrAjGuardar').disabled = false;
+    }
+  }
+
+  async function quitarAjuste() {
+    const r = ajusteEnEdicion;
+    if (!r || !r.Ajuste) return;
+    if (!confirm('¿Quitar este ajuste? El día volverá a calcularse con las marcas y el horario de SIGA.')) return;
+    $('hrAjQuitar').disabled = true;
+    try {
+      const response = await fetch(`${API_CONFIG.baseURL}/horarios/ajustes/${r.Ajuste.IdAjuste}`, {
+        method: 'DELETE', headers: getAuthHeaders()
+      });
+      await handleResponse(response);
+      cerrarAjuste();
+      await cargar(true);
+    } catch (error) {
+      errorAjuste(error?.message || 'No se pudo quitar el ajuste.');
+    } finally {
+      $('hrAjQuitar').disabled = false;
+    }
   }
 
   function renderPanel() {
@@ -603,8 +880,10 @@
           <td class="center">${celdaEntrada(r)}</td>
           <td class="center">${celdaSalida(r)}</td>
           <td class="hr-detalle">${detalleDia(r)}</td>
+          ${state.puedeAjustar ? `<td class="hr-col-action"><button type="button" class="hr-btn hr-btn--sm" data-ajustar="${esc(r.DNI)}|${esc(r.Fecha)}"><i class="fa-solid fa-pen"></i> ${r.Ajuste ? 'Editar' : 'Ajustar'}</button></td>` : ''}
         </tr>`;
-    }).join('') : `<tr><td colspan="5" class="hr-empty">No hay días con este filtro.</td></tr>`;
+    }).join('') : `<tr><td colspan="${state.puedeAjustar ? 6 : 5}" class="hr-empty">No hay días con este filtro.</td></tr>`;
+    $('hrDrawerColAccion').hidden = !state.puedeAjustar;
   }
 
   function abrirPanel(dni) {
@@ -685,6 +964,7 @@
       const data = await handleResponse(response);
       state.rows = Array.isArray(data?.data) ? data.data : [];
       state.todos = !Array.isArray(data?.areas);
+      state.puedeAjustar = data?.puedeAjustar === true;
       state.ultimaCarga = Date.now();
       llenarAreas();
       render();
@@ -777,13 +1057,34 @@
 
     $('hrDrawerCerrar').addEventListener('click', cerrarPanel);
     $('hrDrawerOverlay').addEventListener('click', cerrarPanel);
-    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && state.panel.dni) cerrarPanel(); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      if (!$('hrAjModal').hidden) cerrarAjuste();
+      else if (state.panel.dni) cerrarPanel();
+    });
     $('hrDrawerFiltros').addEventListener('click', (e) => {
       const chip = e.target.closest('.hr-chip');
       if (!chip) return;
       state.panel.filtro = chip.dataset.f;
       renderPanel();
     });
+
+    $('btnHrExportar').addEventListener('click', exportarExcel);
+
+    // Ajustes manuales
+    $('hrDrawerTabla').addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-ajustar]');
+      if (!btn) return;
+      const [dni, fecha] = btn.dataset.ajustar.split('|');
+      abrirAjuste(dni, fecha);
+    });
+    $('hrAjForm').addEventListener('submit', guardarAjuste);
+    $('hrAjCerrar').addEventListener('click', cerrarAjuste);
+    $('hrAjCancelar').addEventListener('click', cerrarAjuste);
+    $('hrAjOverlay').addEventListener('click', cerrarAjuste);
+    $('hrAjQuitar').addEventListener('click', quitarAjuste);
+    ['hrAjFalta', 'hrAjTardanza', 'hrAjSalida', 'hrAjExtra', 'hrAjEntrada', 'hrAjSalidaHora', 'hrAjMotivo']
+      .forEach((id) => $(id).addEventListener('input', () => { $('hrAjError').hidden = true; }));
 
     cargar(false);
     iniciarTiempoReal();

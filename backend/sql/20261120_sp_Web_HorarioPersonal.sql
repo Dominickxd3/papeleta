@@ -174,7 +174,7 @@ LEFT JOIN agg g ON g.UsuarioId = d.UsuarioId AND g.Fecha = d.Fecha';
         GROUP BY b.DNI, b.Fecha
     )
     SELECT
-        COALESCE(LTRIM(RTRIM(t.Area)), a.Area) AS AreaERP,
+        LTRIM(RTRIM(t.Area)) AS AreaERP,
         a.Area AS AreaSIGA,
         a.DNI, a.CodEmpleado, a.Trabajador, a.Cargo,
         CONVERT(char(10), a.Fecha, 23) AS Fecha,
@@ -211,10 +211,11 @@ LEFT JOIN agg g ON g.UsuarioId = d.UsuarioId AND g.Fecha = d.Fecha';
     LEFT JOIN papd pd
            ON pd.DNI = a.DNI COLLATE DATABASE_DEFAULT
           AND pd.Fecha = a.Fecha
-    OUTER APPLY (SELECT TOP 1 c.Area
+    -- Solo personal ACTIVO en el ERP (los 214 de la planilla)
+    CROSS APPLY (SELECT TOP 1 c.Area
                  FROM dbo.TBL_GGHH_TrabajadorCache c
                  WHERE LTRIM(RTRIM(c.DOI)) = a.DNI COLLATE DATABASE_DEFAULT
-                 ORDER BY CASE WHEN c.Activo = '1' THEN 0 ELSE 1 END) t
+                   AND c.Activo = '1') t
     ORDER BY a.Fecha DESC, a.Trabajador;
 END;
 GO
