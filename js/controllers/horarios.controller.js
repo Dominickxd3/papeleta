@@ -6,6 +6,7 @@
   const state = {
     rows: [],
     vista: 'detalle',
+    todos: false,
     cargando: false,
     visibles: PAGINA,
     orden: { campo: 'Trabajador', dir: 'asc' }
@@ -43,7 +44,8 @@
   function fechaLarga(iso) {
     const [y, m, d] = String(iso || '').split('-').map(Number);
     if (!y) return esc(iso);
-    return new Date(y, m - 1, d).toLocaleDateString('es-PE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+    const t = new Date(y, m - 1, d).toLocaleDateString('es-PE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+    return t.charAt(0).toUpperCase() + t.slice(1);
   }
 
   function fillTopbarUser() {
@@ -79,30 +81,23 @@
     });
   }
 
-  // ---------- indicadores ----------
-  function renderKpis(rows) {
-    const trabajadores = new Set(rows.map((r) => r.DNI)).size;
-    const tarde = rows.filter(esTarde);
-    const minTarde = tarde.reduce((t, r) => t + num(r.MinutosTarde), 0);
-    const pap = rows.reduce((t, r) => t + num(r.CantidadPapeletas), 0);
-    const conPap = new Set(rows.filter(tienePapeleta).map((r) => r.DNI)).size;
-
-    $('hrStatTrab').textContent = numero(trabajadores);
-    $('hrStatTrabSub').textContent = `${numero(rows.length)} días registrados`;
-    $('hrStatTarde').textContent = numero(tarde.length);
-    $('hrStatTardeSub').textContent = tarde.length ? `${minutosTexto(minTarde)} en total` : 'sin tardanzas';
-    $('hrStatSin').textContent = numero(rows.filter(esSinMarca).length);
-    $('hrStatPap').textContent = numero(pap);
-    $('hrStatPapSub').textContent = `${numero(conPap)} trabajadores`;
-    $('hrStatHoras').textContent = numero(rows.reduce((t, r) => t + num(r.HorasPermiso), 0), 2);
-
-    const filtro = $('hrFiltro').value;
-    document.querySelectorAll('.hr-kpi').forEach((k) => k.classList.toggle('active', !!filtro && k.dataset.filtro === filtro));
-  }
+  const VACIO = '<span class="hr-none">—</span>';
+  const esHoy = (r) => r.Fecha === isoLocal(new Date());
 
   // ---------- detalle por dia ----------
+  function celdaEstado(r) {
+    if (esSinMarca(r)) return '<span class="hr-tag hr-tag--bad"><i class="fa-solid fa-circle"></i> Sin marcas</span>';
+    if (num(r.CantidadMarcas) < 2) {
+      return esHoy(r)
+        ? '<span class="hr-tag hr-tag--ok"><i class="fa-solid fa-circle"></i> En turno</span>'
+        : '<span class="hr-tag hr-tag--warn"><i class="fa-solid fa-circle"></i> Sin salida</span>';
+    }
+    if (saleAntes(r)) return '<span class="hr-tag hr-tag--bad"><i class="fa-solid fa-circle"></i> Salió antes</span>';
+    return '<span class="hr-tag hr-tag--ok"><i class="fa-solid fa-circle"></i> Asistió</span>';
+  }
+
   function celdaEntrada(r) {
-    if (esSinMarca(r)) return '<span class="hr-tag hr-tag--bad">Sin marcas</span>';
+    if (esSinMarca(r)) return VACIO;
     const t = hora(r.PrimeraMarca || r.Marca1);
     const clase = esTarde(r) ? 'late' : (hora(r.HoraEntradaProgramada) ? 'ok' : '');
     const lugar = r.LugarEntrada ? `<div class="hr-sub">${esc(r.LugarEntrada)}</div>` : '';
@@ -110,12 +105,7 @@
   }
 
   function celdaSalida(r) {
-    if (esSinMarca(r)) return '';
-    if (num(r.CantidadMarcas) < 2) {
-      return r.Fecha === isoLocal(new Date())
-        ? '<span class="hr-tag">En turno</span>'
-        : '<span class="hr-tag hr-tag--warn">Sin salida</span>';
-    }
+    if (esSinMarca(r) || num(r.CantidadMarcas) < 2) return VACIO;
     const t = hora(r.UltimaMarca);
     const clase = saleAntes(r) ? 'early' : (hora(r.HoraSalidaProgramada) ? 'ok' : '');
     const marcas = [r.Marca1, r.Marca2, r.Marca3, r.Marca4].map(hora).filter(Boolean);
@@ -127,7 +117,7 @@
   }
 
   function celdaPermiso(r) {
-    if (!tienePapeleta(r)) return '';
+    if (!tienePapeleta(r)) return VACIO;
     const tipo = r.TipoPermiso ? `<span class="hr-tag hr-tag--pap">${esc(r.TipoPermiso)}</span>` : '';
     const motivo = r.MotivoPermiso ? `<div class="hr-perm__motivo" title="${esc(r.MotivoPermiso)}">${esc(r.MotivoPermiso)}</div>` : '';
     return `
@@ -147,7 +137,7 @@
     const feriado = r.Feriado === 'SI' ? ' <span class="hr-tag">Feriado</span>' : '';
     const manual = num(r.MarcasManuales) > 0 ? ' <span class="hr-tag hr-tag--manual" title="Incluye marcas registradas a mano">Manual</span>' : '';
     const estado = esSinMarca(r) ? 'is-sin' : esTarde(r) ? 'is-tarde' : tienePapeleta(r) ? 'is-pap' : '';
-    const tarde = esTarde(r) ? `<span class="hr-tag hr-tag--warn">${minutosTexto(r.MinutosTarde)}</span>` : '';
+    const tarde = esTarde(r) ? `<span class="hr-tag hr-tag--warn">${minutosTexto(r.MinutosTarde)}</span>` : VACIO;
 
     return `
       <tr class="hr-row ${estado}">
@@ -158,16 +148,17 @@
         <td data-label="Horario">${horario}${feriado}</td>
         <td data-label="Entrada">${celdaEntrada(r)}</td>
         <td data-label="Salida">${celdaSalida(r)}</td>
+        <td data-label="Estado">${celdaEstado(r)}</td>
         <td data-label="Tardanza">${tarde}</td>
         <td data-label="Papeleta">${celdaPermiso(r)}</td>
-        <td data-label="Horas" class="num">${tienePapeleta(r) ? numero(r.HorasPermiso, 2) : ''}</td>
+        <td data-label="Horas" class="num">${tienePapeleta(r) ? numero(r.HorasPermiso, 2) : VACIO}</td>
       </tr>`;
   }
 
   function renderDetalle(rows) {
     const tbody = $('hrTablaDetalle').querySelector('tbody');
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="hr-empty"><i class="fa-regular fa-calendar-xmark"></i>No hay registros para este filtro.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="hr-empty"><i class="fa-regular fa-calendar-xmark"></i>No hay registros para este filtro.</td></tr>';
       return;
     }
 
@@ -185,7 +176,7 @@
       const sin = lista.filter(esSinMarca).length;
       const pap = lista.reduce((t, r) => t + num(r.CantidadPapeletas), 0);
       html += `
-        <tr class="hr-day"><td colspan="7">
+        <tr class="hr-day"><td colspan="8">
           <span class="hr-day__date">${fechaLarga(fecha)}</span>
           <span class="hr-day__meta"><b>${lista.length}</b> trabajadores · <b>${tardes}</b> tardanzas · <b>${sin}</b> sin marcas · <b>${pap}</b> papeletas</span>
         </td></tr>`;
@@ -196,7 +187,7 @@
       }
     }
     if (pintadas < rows.length) {
-      html += `<tr class="hr-more"><td colspan="7"><button type="button" class="hr-btn" id="hrVerMas">Ver ${numero(Math.min(PAGINA, rows.length - pintadas))} más</button></td></tr>`;
+      html += `<tr class="hr-more"><td colspan="8"><button type="button" class="hr-btn" id="hrVerMas">Ver ${numero(Math.min(PAGINA, rows.length - pintadas))} más</button></td></tr>`;
     }
     tbody.innerHTML = html;
     $('hrVerMas')?.addEventListener('click', () => { state.visibles += PAGINA; render(); });
@@ -272,7 +263,6 @@
   // ---------- render general ----------
   function render() {
     const rows = filasFiltradas();
-    renderKpis(rows);
     if (state.vista === 'detalle') {
       renderDetalle(rows);
       $('hrResumenTexto').textContent = `${numero(rows.length)} de ${numero(state.rows.length)} registros`;
@@ -284,7 +274,8 @@
 
   function mostrarMensaje(html) {
     const tabla = state.vista === 'detalle' ? $('hrTablaDetalle') : $('hrTablaResumen');
-    tabla.querySelector('tbody').innerHTML = `<tr><td colspan="7" class="hr-empty">${html}</td></tr>`;
+    const cols = state.vista === 'detalle' ? 8 : 7;
+    tabla.querySelector('tbody').innerHTML = `<tr><td colspan="${cols}" class="hr-empty">${html}</td></tr>`;
   }
 
   function llenarAreas() {
@@ -294,29 +285,14 @@
     select.innerHTML = '<option value="">Todas las áreas</option>' +
       areas.map((a) => `<option value="${esc(a)}">${esc(a)}</option>`).join('');
     select.value = areas.includes(actual) ? actual : '';
-    select.hidden = areas.length < 2;
+    // Solo ADMIN / RRHH (acceso a todo) eligen area; los jefes ya vienen filtrados por su rol.
+    select.hidden = !state.todos || areas.length < 2;
+    if (select.hidden) select.value = '';
   }
 
-  function marcarRangoRapido() {
-    const desde = $('hrDesde').value;
-    const hasta = $('hrHasta').value;
-    document.querySelectorAll('.hr-quick button').forEach((b) => {
-      const [d, h] = rangoRapido(b.dataset.rango);
-      b.classList.toggle('active', d === desde && h === hasta);
-    });
-  }
-
-  function rangoRapido(tipo) {
+  // Rango inicial: del 1 del mes actual a hoy.
+  function rangoInicial() {
     const hoy = new Date();
-    if (tipo === 'hoy') return [isoLocal(hoy), isoLocal(hoy)];
-    if (tipo === 'semana') {
-      const lunes = new Date(hoy);
-      lunes.setDate(hoy.getDate() - ((hoy.getDay() + 6) % 7));
-      return [isoLocal(lunes), isoLocal(hoy)];
-    }
-    if (tipo === 'mesAnterior') {
-      return [isoLocal(new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1)), isoLocal(new Date(hoy.getFullYear(), hoy.getMonth(), 0))];
-    }
     return [isoLocal(new Date(hoy.getFullYear(), hoy.getMonth(), 1)), isoLocal(hoy)];
   }
 
@@ -328,7 +304,6 @@
 
     state.cargando = true;
     state.visibles = PAGINA;
-    marcarRangoRapido();
     $('btnHrActualizar').disabled = true;
     mostrarMensaje('<i class="fa-solid fa-spinner fa-spin"></i>Cargando horarios…');
     try {
@@ -340,16 +315,12 @@
       });
       const data = await handleResponse(response);
       state.rows = Array.isArray(data?.data) ? data.data : [];
-      const areas = Array.isArray(data?.areas) ? data.areas : null;
-      $('hrAlcance').textContent = areas
-        ? (areas.length ? `Tu personal · ${areas.join(' · ')}` : 'No tienes áreas asignadas. Pide a RRHH que te asigne tu área.')
-        : 'Todo el personal de Producción y Desarrollo de Productos';
+      state.todos = !Array.isArray(data?.areas);
       $('hrActualizado').textContent = `Actualizado ${new Date().toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}`;
       llenarAreas();
       render();
     } catch (error) {
       state.rows = [];
-      renderKpis([]);
       mostrarMensaje(`<i class="fa-solid fa-triangle-exclamation"></i>${esc(error?.message || 'No se pudo cargar el horario')}`);
     } finally {
       state.cargando = false;
@@ -371,7 +342,7 @@
 
   function init() {
     fillTopbarUser();
-    const [d, h] = rangoRapido('mes');
+    const [d, h] = rangoInicial();
     $('hrDesde').value = d;
     $('hrHasta').value = h;
 
@@ -384,19 +355,6 @@
     $('hrBuscar').addEventListener('input', () => { clearTimeout(buscarTimer); buscarTimer = setTimeout(reRender, 150); });
     $('hrArea').addEventListener('change', reRender);
     $('hrFiltro').addEventListener('change', reRender);
-
-    document.querySelectorAll('.hr-quick button').forEach((b) => b.addEventListener('click', () => {
-      const [desde, hasta] = rangoRapido(b.dataset.rango);
-      $('hrDesde').value = desde;
-      $('hrHasta').value = hasta;
-      cargar();
-    }));
-
-    document.querySelectorAll('.hr-kpi').forEach((k) => k.addEventListener('click', () => {
-      const f = k.dataset.filtro || '';
-      $('hrFiltro').value = $('hrFiltro').value === f ? '' : f;
-      reRender();
-    }));
 
     document.querySelectorAll('.hr-tab').forEach((b) => b.addEventListener('click', () => cambiarVista(b.dataset.vista)));
 

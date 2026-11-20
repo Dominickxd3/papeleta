@@ -92,35 +92,6 @@ body.dark .horarios-main {
 .hr-btn:disabled i { animation: hr-spin 1s linear infinite; }
 @keyframes hr-spin { to { transform: rotate(360deg); } }
 
-/* ---------- Indicadores ---------- */
-.hr-kpis {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 12px;
-}
-.hr-kpi {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
-  padding: 14px 16px;
-  border: 1px solid var(--hr-line);
-  border-radius: 16px;
-  background: var(--hr-card);
-  color: var(--hr-text);
-  text-align: left;
-  cursor: pointer;
-  transition: border-color .15s, box-shadow .15s;
-}
-.hr-kpi:hover { border-color: var(--hr-faint); }
-.hr-kpi.active { border-color: var(--hr-brand); box-shadow: 0 0 0 3px var(--hr-brand-soft); }
-.hr-kpi__label {
-  display: flex; align-items: center; gap: 6px;
-  font-size: .72rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
-  color: var(--hr-muted);
-}
-.hr-kpi strong { font-size: 1.7rem; font-weight: 900; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.hr-kpi small { color: var(--hr-faint); font-size: .76rem; font-weight: 600; }
-.hr-kpi--warn .hr-kpi__label i { color: var(--hr-warn); }
-.hr-kpi--bad .hr-kpi__label i { color: var(--hr-bad); }
-.hr-kpi--pap .hr-kpi__label i { color: var(--hr-pap); }
 
 /* ---------- Filtros ---------- */
 .hr-toolbar {
@@ -132,7 +103,8 @@ body.dark .horarios-main {
   background: var(--hr-card);
 }
 .hr-range, .hr-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
-.hr-filters { flex: 1 1 380px; justify-content: flex-end; }
+.hr-filters { flex: 1 1 520px; flex-wrap: nowrap; justify-content: flex-end; }
+.hr-filters select { min-width: 170px; }
 .hr-field { display: flex; flex-direction: column; gap: 4px; }
 .hr-field span { font-size: .72rem; font-weight: 800; color: var(--hr-muted); letter-spacing: .04em; text-transform: uppercase; }
 
@@ -151,19 +123,6 @@ body.dark .horarios-main {
 .hr-field input:focus,
 .hr-filters select:focus,
 .hr-search input:focus { border-color: var(--hr-brand); box-shadow: 0 0 0 3px var(--hr-brand-soft); }
-
-.hr-quick { display: flex; gap: 6px; flex-wrap: wrap; }
-.hr-quick button {
-  height: 40px; padding: 0 12px;
-  border: 1px solid var(--hr-line);
-  border-radius: 10px;
-  background: var(--hr-card);
-  color: var(--hr-muted);
-  font-weight: 700; font-size: .82rem;
-  cursor: pointer;
-}
-.hr-quick button:hover { color: var(--hr-brand); border-color: var(--hr-brand); }
-.hr-quick button.active { background: var(--hr-brand-soft); color: var(--hr-brand); border-color: transparent; }
 
 .hr-search { position: relative; flex: 1 1 220px; max-width: 340px; }
 .hr-search i { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--hr-faint); font-size: .85rem; }
@@ -189,14 +148,14 @@ body.dark .horarios-main {
   border: 1px solid var(--hr-line);
   border-radius: 16px;
   background: var(--hr-card);
-  overflow: hidden;
+  overflow-x: auto;
 }
 .hr-card[hidden] { display: none; }
 
 .hr-table { width: 100%; border-collapse: collapse; font-size: .88rem; }
 .hr-table thead th {
   position: sticky; top: 0; z-index: 2;
-  padding: 11px 14px;
+  padding: 11px 10px;
   background: var(--hr-soft);
   border-bottom: 1px solid var(--hr-line);
   color: var(--hr-muted);
@@ -206,7 +165,7 @@ body.dark .horarios-main {
 }
 .hr-table th.num, .hr-table td.num { text-align: right; }
 .hr-table tbody td {
-  padding: 10px 14px;
+  padding: 10px 10px;
   border-bottom: 1px solid var(--hr-line);
   vertical-align: middle;
 }
@@ -226,11 +185,12 @@ body.dark .horarios-main {
   border-bottom: 1px solid var(--hr-line);
   font-size: .82rem;
 }
-.hr-day__date { font-weight: 900; color: var(--hr-text); text-transform: capitalize; }
+.hr-day__date { font-weight: 900; color: var(--hr-text); }
 .hr-day__meta { margin-left: 10px; color: var(--hr-muted); font-weight: 600; }
 .hr-day__meta b { color: var(--hr-text); }
 
 .hr-name { font-weight: 800; line-height: 1.25; }
+.hr-table td:first-child { min-width: 210px; }
 .hr-sub { color: var(--hr-muted); font-size: .78rem; margin-top: 2px; line-height: 1.3; }
 .hr-time { font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
 .hr-time.ok { color: var(--hr-ok); }
@@ -251,8 +211,9 @@ body.dark .horarios-main {
 .hr-tag--pap { background: var(--hr-pap-soft); color: var(--hr-pap); }
 .hr-tag--manual { background: var(--hr-manual-soft); color: var(--hr-manual); }
 .hr-tag--ok { background: var(--hr-ok-soft); color: var(--hr-ok); }
+.hr-tag .fa-circle { font-size: .45rem; }
 
-.hr-perm { max-width: 340px; }
+.hr-perm { max-width: 280px; }
 .hr-perm__head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-weight: 800; }
 .hr-perm__time { font-size: .82rem; margin-top: 3px; font-variant-numeric: tabular-nums; }
 .hr-perm__motivo {
@@ -282,14 +243,11 @@ body.dark .horarios-main {
 
 /* ---------- Responsive ---------- */
 @media (max-width: 1100px) {
-  .hr-kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .hr-filters { justify-content: flex-start; }
+  .hr-filters { justify-content: flex-start; flex-wrap: wrap; }
 }
 
 @media (max-width: 760px) {
   .horarios-main { padding: 14px 12px 28px; }
-  .hr-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .hr-kpi strong { font-size: 1.35rem; }
   .hr-search { max-width: none; }
   .hr-filters > * { flex: 1 1 100%; }
   .hr-tabs { width: 100%; }
