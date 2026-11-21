@@ -58,7 +58,7 @@ function registerHorariosRoutes(app, deps) {
     const activo = String(row?.Activo ?? '').trim();
     const nivel = Number(row?.sw_nivel || 0) || 0;
     if (!row || activo === '0' || activo === '2') return { todos: false, areas: [], denegado: true };
-    if (nivel >= 3) return { todos: true, areas: [] };
+    if (nivel >= 3) return { todos: true, areas: [], nivelGestor: true, login };
     if (nivel !== 2) return { todos: false, areas: [], denegado: true };
 
     const areasResult = await getPool().request()
@@ -74,7 +74,7 @@ function registerHorariosRoutes(app, deps) {
     const areas = (areasResult.recordset || [])
       .map((r) => String(r.NombreAreaERP || '').trim())
       .filter(Boolean);
-    return { todos: false, areas };
+    return { todos: false, areas, login };
   }
 
   app.get('/api/horarios', async (req, res) => {
@@ -117,12 +117,16 @@ function registerHorariosRoutes(app, deps) {
 
       await aplicarAjustes(data, isoDate(desde), isoDate(hasta));
 
+      const gestor = acceso.todos === true && esGestor(req.user, acceso);
+      const puedeAjustar = gestor || (!acceso.todos && acceso.areas.length > 0 && await tienePermisoAjuste(acceso.login));
+
       return res.json({
         success: true,
         desde: isoDate(desde),
         hasta: isoDate(hasta),
         areas: acceso.todos ? null : acceso.areas,
-        puedeAjustar: acceso.todos === true && esGestor(req.user, acceso),
+        esGestor: gestor,
+        puedeAjustar,
         data
       });
     } catch (error) {
@@ -132,11 +136,45 @@ function registerHorariosRoutes(app, deps) {
   });
 
   // ==========================================================
-  // AJUSTES MANUALES (solo ADMIN / RRHH)
+  // AJUSTES MANUALES
+  // - ADMIN / RRHH: ajustan a cualquier trabajador.
+  // - Jefes con permiso (TBL_GGHH_HorarioPermisoAjuste): solo a los
+  //   trabajadores de sus areas asignadas.
   // ==========================================================
   function esGestor(user, acceso) {
     const role = normalizeRole(user?.rol || user?.Rol || user?.role || '');
     return PRIVILEGED_ROLES.has(role) || (Number(user?.sw_nivel || 0) >= 3) || acceso?.nivelGestor === true;
+  }
+
+  async function tienePermisoAjuste(login) {
+    if (!login) return false;
+    const r = await getPool().request()
+      .input('UserLogon', sql.VarChar(80), login)
+      .query(`SELECT TOP 1 1 AS ok FROM dbo.TBL_GGHH_HorarioPermisoAjuste WHERE UserLogon = @UserLogon AND Activo = 1`);
+    return !!r.recordset?.length;
+  }
+
+  // Valida que quien llama pueda ajustar a ESTE trabajador.
+  async function exigirAjuste(req, res, dni) {
+    const acceso = await resolverAcceso(req.user);
+    if (acceso.denegado) {
+      res.status(403).json({ success: false, message: 'Acceso denegado' });
+      return false;
+    }
+    if (acceso.todos && esGestor(req.user, acceso)) return true;
+    if (acceso.todos || !(await tienePermisoAjuste(acceso.login))) {
+      res.status(403).json({ success: false, message: 'No tienes permiso para ajustar horarios' });
+      return false;
+    }
+    const area = await getPool().request()
+      .input('DOI', sql.VarChar(20), String(dni || ''))
+      .query(`SELECT TOP 1 LTRIM(RTRIM(Area)) AS Area FROM dbo.TBL_GGHH_TrabajadorCache WHERE LTRIM(RTRIM(DOI)) = @DOI AND Activo = '1'`);
+    const areaTrab = String(area.recordset?.[0]?.Area || '').toUpperCase();
+    if (!areaTrab || !acceso.areas.some((a) => a.toUpperCase() === areaTrab)) {
+      res.status(403).json({ success: false, message: 'Solo puedes ajustar a trabajadores de tus áreas' });
+      return false;
+    }
+    return true;
   }
 
   const aMin = (hhmm) => {
@@ -198,7 +236,7 @@ function registerHorariosRoutes(app, deps) {
   async function exigirGestor(req, res) {
     const acceso = await resolverAcceso(req.user);
     if (acceso.denegado || !acceso.todos || !esGestor(req.user, acceso)) {
-      res.status(403).json({ success: false, message: 'Solo ADMIN o RRHH pueden ajustar horarios' });
+      res.status(403).json({ success: false, message: 'Solo ADMIN o RRHH pueden hacer esto' });
       return false;
     }
     return true;
@@ -208,10 +246,10 @@ function registerHorariosRoutes(app, deps) {
     return String(req.user?.usuario || req.user?.Usuario || 'sistema').trim().slice(0, 80);
   }
 
-  async function auditar(req, accion, idRegistro, anterior, nuevo, observacion) {
+  async function auditar(req, accion, idRegistro, anterior, nuevo, observacion, tabla = 'TBL_GGHH_HorarioAjuste') {
     try {
       await registrarAuditoria(() => getPool().request(), {
-        tabla: 'TBL_GGHH_HorarioAjuste',
+        tabla,
         idRegistro,
         accion,
         usuario: usuarioActual(req),
@@ -230,9 +268,9 @@ function registerHorariosRoutes(app, deps) {
   // Crear o actualizar el ajuste de un trabajador en un dia
   app.post('/api/horarios/ajustes', async (req, res) => {
     try {
-      if (!(await exigirGestor(req, res))) return;
       const b = req.body || {};
       const dni = String(b.dni || '').trim();
+      if (!(await exigirAjuste(req, res, dni))) return;
       const fecha = parseFecha(b.fecha);
       const motivo = String(b.motivo || '').trim();
       const horaOk = (h) => h === '' || h === null || h === undefined || /^([01]\d|2[0-3]):[0-5]\d$/.test(String(h));
@@ -311,7 +349,6 @@ function registerHorariosRoutes(app, deps) {
   // Anular un ajuste (no se borra: queda con Activo = 0)
   app.delete('/api/horarios/ajustes/:id', async (req, res) => {
     try {
-      if (!(await exigirGestor(req, res))) return;
       const id = Number(req.params.id);
       if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ success: false, message: 'Id inválido' });
 
@@ -319,6 +356,7 @@ function registerHorariosRoutes(app, deps) {
         .query(`SELECT TOP 1 * FROM dbo.TBL_GGHH_HorarioAjuste WHERE IdAjuste = @Id AND Activo = 1`);
       const anterior = previo.recordset?.[0];
       if (!anterior) return res.status(404).json({ success: false, message: 'Ajuste no encontrado' });
+      if (!(await exigirAjuste(req, res, String(anterior.DNI || '').trim()))) return;
 
       await getPool().request()
         .input('Id', sql.Int, id)
@@ -330,6 +368,75 @@ function registerHorariosRoutes(app, deps) {
     } catch (error) {
       console.error('Error anulando ajuste de horario:', error);
       return res.status(500).json({ success: false, message: 'No se pudo quitar el ajuste' });
+    }
+  });
+
+  // ==========================================================
+  // PERMISO PARA AJUSTAR (solo ADMIN / RRHH lo dan o lo quitan)
+  // ==========================================================
+  app.get('/api/horarios/permisos-ajuste', async (req, res) => {
+    try {
+      if (!(await exigirGestor(req, res))) return;
+      const result = await getPool().request().query(`
+        SELECT U.UserLogon,
+               LTRIM(RTRIM(U.NombreCompleto)) AS Nombre,
+               U.sw_nivel AS Nivel,
+               CAST(CASE WHEN P.Activo = 1 THEN 1 ELSE 0 END AS bit) AS TienePermiso,
+               P.AsignadoPor, P.FechaAsignacion, P.UsuarioModifica, P.FechaModifica,
+               STUFF((SELECT ', ' + LTRIM(RTRIM(A.NombreAreaERP))
+                      FROM dbo.TBL_USUARIO_ERP_AREA_APP UEA
+                      JOIN dbo.TBL_AREAS_ERP_APP A ON A.IdAreaERP = UEA.IdAreaERP
+                      WHERE UEA.UserLogon = U.UserLogon AND ISNULL(UEA.Activo, '1') = '1' AND ISNULL(A.Activo, '1') = '1'
+                      ORDER BY A.NombreAreaERP
+                      FOR XML PATH(''), TYPE).value('.', 'nvarchar(1000)'), 1, 2, '') AS Areas
+        FROM dbo.TBL_USUARIOS_ERP_APP U
+        LEFT JOIN dbo.TBL_GGHH_HorarioPermisoAjuste P ON P.UserLogon = U.UserLogon
+        WHERE ISNULL(U.Activo, '1') = '1' AND ISNULL(U.sw_nivel, 1) = 2
+        ORDER BY CASE WHEN P.Activo = 1 THEN 0 ELSE 1 END, U.NombreCompleto
+      `);
+      return res.json({ success: true, data: result.recordset || [] });
+    } catch (error) {
+      console.error('Error listando permisos de ajuste:', error);
+      return res.status(500).json({ success: false, message: 'No se pudo cargar la lista de permisos' });
+    }
+  });
+
+  app.put('/api/horarios/permisos-ajuste', async (req, res) => {
+    try {
+      if (!(await exigirGestor(req, res))) return;
+      const login = String(req.body?.userLogon || '').trim();
+      const activo = req.body?.activo === true;
+      if (!login) return res.status(400).json({ success: false, message: 'Usuario inválido' });
+
+      const user = await getPool().request().input('UserLogon', sql.VarChar(80), login)
+        .query(`SELECT TOP 1 UserLogon FROM dbo.TBL_USUARIOS_ERP_APP WHERE UserLogon = @UserLogon AND ISNULL(Activo, '1') = '1'`);
+      if (!user.recordset?.length) return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+
+      const previo = await getPool().request().input('UserLogon', sql.VarChar(80), login)
+        .query(`SELECT TOP 1 * FROM dbo.TBL_GGHH_HorarioPermisoAjuste WHERE UserLogon = @UserLogon`);
+      const anterior = previo.recordset?.[0] || null;
+      const quien = usuarioActual(req);
+
+      if (anterior) {
+        await getPool().request()
+          .input('UserLogon', sql.VarChar(80), login)
+          .input('Activo', sql.Bit, activo)
+          .input('Usuario', sql.VarChar(80), quien)
+          .query(`UPDATE dbo.TBL_GGHH_HorarioPermisoAjuste SET Activo = @Activo, UsuarioModifica = @Usuario, FechaModifica = GETDATE() WHERE UserLogon = @UserLogon`);
+      } else if (activo) {
+        await getPool().request()
+          .input('UserLogon', sql.VarChar(80), login)
+          .input('Usuario', sql.VarChar(80), quien)
+          .query(`INSERT INTO dbo.TBL_GGHH_HorarioPermisoAjuste (UserLogon, Activo, AsignadoPor) VALUES (@UserLogon, 1, @Usuario)`);
+      }
+
+      await auditar(req, activo ? 'DAR_PERMISO' : 'QUITAR_PERMISO', 0, anterior, { userLogon: login, activo },
+        `${activo ? 'Permiso para ajustar horarios dado a' : 'Permiso para ajustar horarios quitado a'} ${login}`,
+        'TBL_GGHH_HorarioPermisoAjuste');
+      return res.json({ success: true, message: activo ? 'Permiso otorgado' : 'Permiso quitado' });
+    } catch (error) {
+      console.error('Error guardando permiso de ajuste:', error);
+      return res.status(500).json({ success: false, message: 'No se pudo guardar el permiso' });
     }
   });
 }

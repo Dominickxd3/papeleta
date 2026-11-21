@@ -165,11 +165,11 @@ LEFT JOIN agg g ON g.UsuarioId = d.UsuarioId AND g.Fecha = d.Fecha';
                STUFF((SELECT ' / ' + CASE WHEN x.Motivo = '' THEN '-' ELSE x.Motivo END
                       FROM papBase x WHERE x.DNI = b.DNI AND x.Fecha = b.Fecha ORDER BY x.s, x.Num
                       FOR XML PATH(''), TYPE).value('.', 'nvarchar(1000)'), 1, 3, '') AS Motivos,
-               -- Tramos autorizados "HH:MM-HH:MM;HH:MM-" (sin hora de retorno = hasta fin de turno)
+               -- Tramos autorizados "HH:MM-HH:MM|Tipo;HH:MM-|Tipo" (sin hora de retorno = hasta fin de turno)
                STUFF((SELECT ';' + CONVERT(char(5), x.s, 108) + '-' +
-                             CASE WHEN x.r > x.s THEN CONVERT(char(5), x.r, 108) ELSE '' END
+                             CASE WHEN x.r > x.s THEN CONVERT(char(5), x.r, 108) ELSE '' END + '|' + REPLACE(REPLACE(x.Tipo, ';', ','), '|', '/')
                       FROM papBase x WHERE x.DNI = b.DNI AND x.Fecha = b.Fecha AND x.s IS NOT NULL ORDER BY x.s, x.Num
-                      FOR XML PATH(''), TYPE).value('.', 'varchar(300)'), 1, 1, '') AS Tramos
+                      FOR XML PATH(''), TYPE).value('.', 'varchar(1000)'), 1, 1, '') AS Tramos
         FROM papBase b
         GROUP BY b.DNI, b.Fecha
     )

@@ -138,6 +138,9 @@
           </div>
         </div>
         <div class="hr-head__actions">
+          <button id="btnHrPermisos" class="hr-btn" type="button" hidden title="Elige qué jefes pueden ajustar horarios de su gente">
+            <i class="fa-solid fa-user-lock"></i><span>Permisos de ajuste</span>
+          </button>
           <button id="btnHrExportar" class="hr-btn" type="button" title="Descarga el resumen y el detalle de lo que ves en pantalla">
             <i class="fa-solid fa-file-excel"></i><span>Exportar Excel</span>
           </button>
@@ -315,6 +318,36 @@
         <button type="submit" class="hr-btn hr-btn--primary" id="hrAjGuardar"><i class="fa-solid fa-check"></i> Guardar ajuste</button>
       </footer>
     </form>
+  </div>
+
+  <!-- Permisos para ajustar horarios (solo ADMIN / RRHH) -->
+  <div class="hr-modal-overlay" id="hrPermOverlay" hidden></div>
+  <div class="hr-modal hr-modal--wide" id="hrPermModal" role="dialog" aria-modal="true" aria-labelledby="hrPermTitulo" hidden>
+    <header class="hr-modal__head">
+      <div>
+        <h2 id="hrPermTitulo">Permisos de ajuste</h2>
+        <p class="hr-sub">Los jefes con permiso pueden ajustar el horario solo de los trabajadores de sus áreas.</p>
+      </div>
+      <button type="button" class="hr-icon-btn" id="hrPermCerrar" aria-label="Cerrar"><i class="fa-solid fa-xmark"></i></button>
+    </header>
+    <div class="hr-modal__body">
+      <p class="hr-aj-error" id="hrPermError" role="alert" hidden></p>
+      <table class="hr-table hr-table--perm">
+        <thead>
+          <tr>
+            <th>Jefe</th>
+            <th>Áreas asignadas</th>
+            <th class="center">Puede ajustar</th>
+          </tr>
+        </thead>
+        <tbody id="hrPermTabla"></tbody>
+      </table>
+    </div>
+    <footer class="hr-modal__foot">
+      <span class="hr-sub">Los cambios se guardan al momento y quedan en la auditoría.</span>
+      <span class="hr-spacer"></span>
+      <button type="button" class="hr-btn" id="hrPermListo">Listo</button>
+    </footer>
   </div>
 
   <script src="../js/api/api-client.js"></script>

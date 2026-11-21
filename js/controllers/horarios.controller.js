@@ -122,9 +122,35 @@
 
   function tramosPapeleta(r) {
     return String(r.TramosPermiso || '').split(';').map((t) => {
-      const [a, b] = t.split('-');
-      return { s: aMinutos(a), r: aMinutos(b) };
+      const [rango, tipo] = t.split('|');
+      const [a, b] = String(rango || '').split('-');
+      return { s: aMinutos(a), r: aMinutos(b), tipo: String(tipo || '').trim() };
     }).filter((t) => t.s !== null);
+  }
+
+  // Compensacion: el trabajador sale ahora y repone despues, asi que las
+  // horas del permiso se SUMAN a lo que debe. Comision, 1/2 dia a cuenta de
+  // vacaciones y otros tipos NO se descuentan (el tiempo queda justificado).
+  const esCompensacion = (tipo) => /^compensaci/i.test(String(tipo || '').normalize('NFD').replace(/[̀-ͯ]/g, ''));
+
+  function compensacionDia(r) {
+    const res = { minutos: 0, tramos: [] };
+    if (!tienePapeleta(r) || esVacaciones(r)) return res;
+    const E = aMinutos(r.HoraEntradaProgramada);
+    const S = aMinutos(r.HoraSalidaProgramada);
+    tramosPapeleta(r).forEach((t) => {
+      if (!esCompensacion(t.tipo)) return;
+      const ini = E !== null ? Math.max(t.s, E) : t.s;
+      let fin = t.r !== null ? t.r : S;
+      if (fin === null) return;
+      if (S !== null) fin = Math.min(fin, S);
+      const min = Math.max(0, fin - ini);
+      if (min) {
+        res.minutos += min;
+        res.tramos.push(`${hhmm(t.s)} a ${t.r !== null ? hhmm(t.r) : 'fin de turno'}`);
+      }
+    });
+    return res;
   }
 
   // Devuelve cuanto se debe ese dia (tardanza, salida y permisos con retorno)
@@ -387,6 +413,8 @@
       s.justificado += ev.justificado;
       s.debeTarde += ev.tarde;
       s.debeSalidas += ev.salida + ev.permiso;
+      const comp = compensacionDia(r);
+      if (comp.minutos) { s.debeCompensa = (s.debeCompensa || 0) + comp.minutos; s.diasCompensa = (s.diasCompensa || 0) + 1; }
       if (ev.tarde) s.diasDebeTarde = (s.diasDebeTarde || 0) + 1;
       if (ev.salida + ev.permiso) s.diasDebeSalida = (s.diasDebeSalida || 0) + 1;
       const extra = minutosExtra(r);
@@ -398,7 +426,8 @@
     lista.forEach((s) => {
       s.asistencia = s.conMarca / Math.max(1, s.conMarca + s.sinMarca);
       // Saldo final: positivo = la empresa le debe; negativo = el trabajador debe.
-      s.balance = s.minExtra - s.debeTarde - s.debeSalidas;
+      s.debeCompensa = s.debeCompensa || 0;
+      s.balance = s.minExtra - s.debeTarde - s.debeSalidas - s.debeCompensa;
     });
 
     const { campo, dir } = state.orden;
@@ -476,12 +505,13 @@
 
   // Un solo recuadro: quien debe a quien y como se llego a ese numero.
   function consolidadoHtml(s) {
-    const enContra = s.debeTarde + s.debeSalidas;
+    const enContra = s.debeTarde + s.debeSalidas + s.debeCompensa;
     const total = s.conMarca + s.sinMarca;
 
     const detContra = [];
     if (s.debeTarde) detContra.push(`Tardanzas ${minutosTexto(s.debeTarde)} (${plural(s.diasDebeTarde || 0, 'día', 'días')})`);
     if (s.debeSalidas) detContra.push(`Salidas antes ${minutosTexto(s.debeSalidas)} (${plural(s.diasDebeSalida || 0, 'día', 'días')})`);
+    if (s.debeCompensa) detContra.push(`Papeletas de compensación ${minutosTexto(s.debeCompensa)} (${plural(s.diasCompensa || 0, 'día', 'días')})`);
 
     let saldoTitulo; let saldoValor; let saldoTexto; let tono;
     if (s.balance > 0) {
@@ -548,6 +578,12 @@
       ev.notas.forEach((n) => partes.push(n.ok
         ? `<span class="hr-txt-ok"><i class="fa-solid fa-check"></i> ${esc(n.txt)}</span>`
         : `<span class="hr-txt-bad"><i class="fa-solid fa-triangle-exclamation"></i> ${esc(n.txt)}</span>`));
+      const comp = compensacionDia(r);
+      if (comp.minutos) {
+        partes.push(`<span class="hr-txt-warn"><i class="fa-solid fa-clock-rotate-left"></i> Compensación ${esc(comp.tramos.join(', '))}: ${minutosTexto(comp.minutos)} se suman a lo que debe</span>`);
+      } else if (tramosPapeleta(r).some((t) => !esCompensacion(t.tipo))) {
+        partes.push('<span class="hr-note">Permiso que no se descuenta (no es compensación)</span>');
+      }
     }
     const extra = minutosExtra(r);
     if (extra) partes.push(`<span class="hr-txt-ok">Se quedó ${minutosTexto(extra)} más (tiempo extra)</span>`);
@@ -631,6 +667,7 @@
         { header: 'Días con salida antes', key: 'ds', width: 11 },
         { header: 'Salida antes a descontar (min)', key: 'ms', width: 14 },
         { header: 'Tiempo extra (min)', key: 'ex', width: 12 },
+        { header: 'Compensación a reponer (min)', key: 'co', width: 14 },
         { header: 'Justificado con papeleta (min)', key: 'ju', width: 14 },
         { header: 'Saldo (min)', key: 'saldo', width: 11 },
         { header: 'Saldo', key: 'saldoTxt', width: 24 },
@@ -642,7 +679,7 @@
           trab: s.Trabajador, dni: s.DNI, cargo: tipoTitulo(s.Cargo), area: areaDe.get(s.DNI),
           dias: s.conMarca, sin: s.sinMarca, fj: s.faltasJustificadas || 0, vac: s.vacaciones || 0,
           dt: s.diasTarde, mt: s.debeTarde, ds: s.salidas, ms: s.debeSalidas,
-          ex: s.minExtra, ju: s.justificado, saldo: s.balance, saldoTxt: saldoTexto(s.balance),
+          ex: s.minExtra, co: s.debeCompensa, ju: s.justificado, saldo: s.balance, saldoTxt: saldoTexto(s.balance),
           pap: s.papeletas, hp: Number(s.horas.toFixed(2))
         });
         const c = row.getCell('saldoTxt');
@@ -691,7 +728,7 @@
           mt: esTarde(r) ? num(r.MinutosTarde) : 0,
           ms: saleAntes(r) ? num(r.MinutosSalidaAntes) : 0,
           ex: minutosExtra(r),
-          desc: ev.tarde + ev.salida + ev.permiso,
+          desc: ev.tarde + ev.salida + ev.permiso + compensacionDia(r).minutos,
           np: tienePapeleta(r) ? r.NumeroPapeleta : '',
           tp: tienePapeleta(r) ? r.TipoPermiso : '',
           hp: tienePapeleta(r) ? r.HorarioPermiso : '',
@@ -718,6 +755,50 @@
     } finally {
       btn.disabled = false;
     }
+  }
+
+  // ---------- permisos de ajuste (solo ADMIN / RRHH) ----------
+  async function cargarPermisos() {
+    const tbody = $('hrPermTabla');
+    try {
+      const response = await fetch(`${API_CONFIG.baseURL}/horarios/permisos-ajuste`, { headers: getAuthHeaders(), cache: 'no-store' });
+      const data = await handleResponse(response);
+      const lista = Array.isArray(data?.data) ? data.data : [];
+      tbody.innerHTML = lista.length ? lista.map((u) => {
+        const quien = u.TienePermiso && (u.UsuarioModifica || u.AsignadoPor)
+          ? `<div class="hr-sub">Dado por ${esc(u.UsuarioModifica || u.AsignadoPor)}</div>` : '';
+        return `
+          <tr>
+            <td>
+              <div class="hr-name">${esc(u.Nombre || u.UserLogon)}</div>
+              <div class="hr-sub">${esc(u.UserLogon)}</div>
+            </td>
+            <td>${u.Areas ? `<span class="hr-sub">${esc(u.Areas)}</span>` : nota('Sin áreas asignadas')}</td>
+            <td class="center">
+              <label class="hr-switch" title="${u.TienePermiso ? 'Quitar permiso' : 'Dar permiso'}">
+                <input type="checkbox" data-logon="${esc(u.UserLogon)}" ${u.TienePermiso ? 'checked' : ''} ${u.Areas ? '' : 'disabled'}>
+                <span></span>
+              </label>
+              ${quien}
+            </td>
+          </tr>`;
+      }).join('') : '<tr><td colspan="3" class="hr-empty">No hay jefes (nivel 2) registrados.</td></tr>';
+    } catch (error) {
+      tbody.innerHTML = `<tr><td colspan="3" class="hr-empty">${esc(error?.message || 'No se pudo cargar la lista')}</td></tr>`;
+    }
+  }
+
+  function abrirPermisos() {
+    $('hrPermError').hidden = true;
+    $('hrPermTabla').innerHTML = '<tr><td colspan="3" class="hr-empty"><i class="fa-solid fa-spinner fa-spin"></i>Cargando…</td></tr>';
+    $('hrPermModal').hidden = false;
+    $('hrPermOverlay').hidden = false;
+    cargarPermisos();
+  }
+
+  function cerrarPermisos() {
+    $('hrPermModal').hidden = true;
+    $('hrPermOverlay').hidden = true;
   }
 
   // ---------- ajustes manuales ----------
@@ -965,6 +1046,7 @@
       state.rows = Array.isArray(data?.data) ? data.data : [];
       state.todos = !Array.isArray(data?.areas);
       state.puedeAjustar = data?.puedeAjustar === true;
+      $('btnHrPermisos').hidden = data?.esGestor !== true;
       state.ultimaCarga = Date.now();
       llenarAreas();
       render();
@@ -1060,6 +1142,7 @@
     document.addEventListener('keydown', (e) => {
       if (e.key !== 'Escape') return;
       if (!$('hrAjModal').hidden) cerrarAjuste();
+      else if (!$('hrPermModal').hidden) cerrarPermisos();
       else if (state.panel.dni) cerrarPanel();
     });
     $('hrDrawerFiltros').addEventListener('click', (e) => {
@@ -1070,6 +1153,32 @@
     });
 
     $('btnHrExportar').addEventListener('click', exportarExcel);
+
+    // Permisos de ajuste (solo ADMIN / RRHH)
+    $('btnHrPermisos').addEventListener('click', abrirPermisos);
+    $('hrPermCerrar').addEventListener('click', cerrarPermisos);
+    $('hrPermListo').addEventListener('click', cerrarPermisos);
+    $('hrPermOverlay').addEventListener('click', cerrarPermisos);
+    $('hrPermTabla').addEventListener('change', async (e) => {
+      const chk = e.target.closest('input[data-logon]');
+      if (!chk) return;
+      chk.disabled = true;
+      $('hrPermError').hidden = true;
+      try {
+        const response = await fetch(`${API_CONFIG.baseURL}/horarios/permisos-ajuste`, {
+          method: 'PUT', headers: getAuthHeaders(),
+          body: JSON.stringify({ userLogon: chk.dataset.logon, activo: chk.checked })
+        });
+        await handleResponse(response);
+        await cargarPermisos();
+      } catch (error) {
+        chk.checked = !chk.checked;
+        $('hrPermError').textContent = error?.message || 'No se pudo guardar el permiso.';
+        $('hrPermError').hidden = false;
+      } finally {
+        chk.disabled = false;
+      }
+    });
 
     // Ajustes manuales
     $('hrDrawerTabla').addEventListener('click', (e) => {
