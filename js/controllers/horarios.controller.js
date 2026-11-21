@@ -581,9 +581,13 @@
       const comp = compensacionDia(r);
       if (comp.minutos) {
         partes.push(`<span class="hr-txt-warn"><i class="fa-solid fa-clock-rotate-left"></i> Compensación ${esc(comp.tramos.join(', '))}: ${minutosTexto(comp.minutos)} se suman a lo que debe</span>`);
-      } else if (tramosPapeleta(r).some((t) => !esCompensacion(t.tipo))) {
-        partes.push('<span class="hr-note">Permiso que no se descuenta (no es compensación)</span>');
       }
+      // Permisos que no se descuentan: se indica el tipo que se le dio
+      tramosPapeleta(r).filter((t) => !esCompensacion(t.tipo)).forEach((t) => {
+        const tipo = t.tipo ? tipoOracion(t.tipo) : 'Permiso sin tipo';
+        const rango = `${hhmm(t.s)} a ${t.r !== null ? hhmm(t.r) : 'fin de turno'}`;
+        partes.push(`<span class="hr-note"><i class="fa-regular fa-circle-check"></i> ${esc(tipo)} (${rango}): no se descuenta</span>`);
+      });
     }
     const extra = minutosExtra(r);
     if (extra) partes.push(`<span class="hr-txt-ok">Se quedó ${minutosTexto(extra)} más (tiempo extra)</span>`);
@@ -1046,7 +1050,7 @@
       state.rows = Array.isArray(data?.data) ? data.data : [];
       state.todos = !Array.isArray(data?.areas);
       state.puedeAjustar = data?.puedeAjustar === true;
-      $('btnHrPermisos').hidden = data?.esGestor !== true;
+      $('btnHrPermisos').hidden = data?.esAdmin !== true;
       state.ultimaCarga = Date.now();
       llenarAreas();
       render();

@@ -58,7 +58,7 @@ function registerHorariosRoutes(app, deps) {
     const activo = String(row?.Activo ?? '').trim();
     const nivel = Number(row?.sw_nivel || 0) || 0;
     if (!row || activo === '0' || activo === '2') return { todos: false, areas: [], denegado: true };
-    if (nivel >= 3) return { todos: true, areas: [], nivelGestor: true, login };
+    if (nivel >= 3) return { todos: true, areas: [], nivelGestor: true, nivel, login };
     if (nivel !== 2) return { todos: false, areas: [], denegado: true };
 
     const areasResult = await getPool().request()
@@ -126,6 +126,7 @@ function registerHorariosRoutes(app, deps) {
         hasta: isoDate(hasta),
         areas: acceso.todos ? null : acceso.areas,
         esGestor: gestor,
+        esAdmin: gestor && esAdmin(req.user, acceso),
         puedeAjustar,
         data
       });
@@ -231,6 +232,22 @@ function registerHorariosRoutes(app, deps) {
       if (a.NoContarTardanza) r.MinutosTarde = 0;
       if (a.NoContarSalida) r.MinutosSalidaAntes = 0;
     });
+  }
+
+  // Solo el ADMINISTRADOR da o quita el permiso de ajuste.
+  const ADMIN_ROLES = new Set(['ADMIN', 'ADMINISTRADOR', 'ADMINISTRADOR DEL SISTEMA']);
+  function esAdmin(user, acceso) {
+    const role = normalizeRole(user?.rol || user?.Rol || user?.role || '');
+    return ADMIN_ROLES.has(role) || Number(user?.sw_nivel || 0) >= 4 || Number(acceso?.nivel || 0) >= 4;
+  }
+
+  async function exigirAdmin(req, res) {
+    const acceso = await resolverAcceso(req.user);
+    if (acceso.denegado || !acceso.todos || !esAdmin(req.user, acceso)) {
+      res.status(403).json({ success: false, message: 'Solo el administrador puede gestionar estos permisos' });
+      return false;
+    }
+    return true;
   }
 
   async function exigirGestor(req, res) {
@@ -376,7 +393,7 @@ function registerHorariosRoutes(app, deps) {
   // ==========================================================
   app.get('/api/horarios/permisos-ajuste', async (req, res) => {
     try {
-      if (!(await exigirGestor(req, res))) return;
+      if (!(await exigirAdmin(req, res))) return;
       const result = await getPool().request().query(`
         SELECT U.UserLogon,
                LTRIM(RTRIM(U.NombreCompleto)) AS Nombre,
@@ -403,7 +420,7 @@ function registerHorariosRoutes(app, deps) {
 
   app.put('/api/horarios/permisos-ajuste', async (req, res) => {
     try {
-      if (!(await exigirGestor(req, res))) return;
+      if (!(await exigirAdmin(req, res))) return;
       const login = String(req.body?.userLogon || '').trim();
       const activo = req.body?.activo === true;
       if (!login) return res.status(400).json({ success: false, message: 'Usuario inválido' });

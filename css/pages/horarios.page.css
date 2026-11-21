@@ -46,6 +46,9 @@ body.dark .horarios-main {
   --hr-bad-bg: rgba(248, 113, 113, .12);
 }
 
+/* El atributo hidden debe ganarle a los display de los componentes */
+.horarios-main [hidden] { display: none !important; }
+
 .hr-wrap {
   max-width: 1360px;
   margin: 0 auto;
